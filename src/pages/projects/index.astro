@@ -1,0 +1,34 @@
+---
+import Card from "@/components/Card.astro";
+import Image from "@/components/Image.astro";
+import Layout from "@/layouts/Layout.astro";
+import * as contents from "@/lib/contents";
+
+const { result: projects } = await contents.getProjects();
+---
+
+<Layout title="Projects">
+  <div class="projects">
+    <ul>
+      {projects.map((project, i) => (
+        <li>
+          <Card>
+            <Image
+              slot="image"
+              transition-name={`${project.slug.current}-0`}
+              image={project.image}
+              width={640}
+              widths={[320, 640, 800, 960, 1280, 1600]}
+              sizes="(max-width: 640px) 100vw, (max-width: 1046px) calc((100vw - 65px) / 2), calc((100vw - 86px) / 3)"
+              fetchpriority={i <= 7 ? 'high' : undefined}
+            />
+            <Fragment slot="body">
+              <a href={`/projects/${project.slug.current}`}>{project.title}</a>
+              <span>{project.subtitle}</span>
+            </Fragment>
+          </Card>
+        </li>
+      ))}
+    </ul>
+  </div>
+</Layout>

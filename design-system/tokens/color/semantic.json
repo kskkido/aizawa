@@ -1,0 +1,25 @@
+{
+  "color": {
+    "theme": {
+      "value": "{color.base.beige}"
+    },
+    "surface": {
+      "normal": {
+        "value": "{color.base.white}"
+      }
+    },
+    "border": {
+      "normal": {
+        "value": "{color.base.gray.500}"
+      }
+    },
+    "text": {
+      "normal": {
+        "value": "{color.base.black}"
+      },
+      "muted": {
+        "value": "{color.base.gray.500}"
+      }
+    }
+  }
+}

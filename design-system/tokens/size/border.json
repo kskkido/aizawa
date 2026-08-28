@@ -1,0 +1,37 @@
+{
+  "size": {
+    "border": {
+      "width": {
+        "sm": {
+          "value": "1px"
+        },
+        "md": {
+          "value": "2px"
+        },
+        "lg": {
+          "value": "3px"
+        },
+        "xl": {
+          "value": "4px"
+        }
+      },
+      "radius": {
+        "xs": {
+          "value": "2px"
+        },
+        "sm": {
+          "value": "4px"
+        },
+        "md": {
+          "value": "8px"
+        },
+        "lg": {
+          "value": "16px"
+        },
+        "rounded": {
+          "value": "9999px"
+        }
+      }
+    }
+  }
+}

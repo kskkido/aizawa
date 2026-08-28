@@ -1,0 +1,21 @@
+{
+  "font": {
+    "family": {
+      "base": {
+        "value": "Georgia, system-ui, sans-serif",
+        "type": "fontFamily"
+      }
+    },
+    "weight": {
+      "normal": {
+        "value": 400
+      },
+      "semibold": {
+        "value": 500
+      },
+      "bold": {
+        "value": 600
+      }
+    }
+  }
+}

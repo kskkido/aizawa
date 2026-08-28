@@ -1,0 +1,14 @@
+---
+type Props = {
+  class?: string;
+};
+---
+
+<article class:list={["card", Astro.props.class]}>
+  <div class="stack justify-center">
+    <slot name="image" />
+  </div>
+  <div class="stack stack-sm">
+    <slot name="body" />
+  </div>
+</article>

@@ -1,11 +1,180 @@
 ---
-import Welcome from '../components/Welcome.astro';
-import Layout from '../layouts/Layout.astro';
+import Image from "@/components/Image.astro";
+import Layout from "@/layouts/Layout.astro";
+import * as contents from "@/lib/contents";
 
-// Welcome to Astro! Wondering what to do next? Check out the Astro documentation at https://docs.astro.build
-// Don't want to use any of this? Delete everything in this file, the `assets`, `components`, and `layouts` directories, and start fresh.
+const { result: home } = await contents.getHome();
+const { pathname } = Astro.url;
 ---
 
-<Layout>
-	<Welcome />
+<Layout class="page-full overflow-hidden">
+  <ol
+    id={pathname}
+    class="slider"
+    data-component="slider"
+    style={`--sibling-count: ${home.slides.length};`}
+  >
+    {home.slides.map((slide, i) => (
+      <li class="slider-slide" aria-current={i === 0 ? 'true' : null} data-slug={slide.slug.current} data-index={i}>
+        <div class="slider-slide-content">
+          <article class="slider-slide-image">
+            <a href={`/projects/${slide.slug.current}`}>
+              <Image
+                transition-name={`${slide.slug.current}-0`}
+                image={slide.image}
+                width={640}
+                widths={[320, 640, 960, 1280, 1600]}
+                sizes="80vw"
+              />
+            </a>
+          </article>
+          <footer class="slider-slide-caption">
+            <div class="stack stack-none">
+              <span>
+                {slide.title}
+              </span>
+              <span>
+                {slide.subtitle}
+              </span>
+            </div>
+          </footer>
+        </div>
+      </li>
+    ))}
+  </ol>
 </Layout>
+
+<script>
+import * as stores from "@/lib/stores";
+
+const COMPONENT_QUERY = 'ol[id][data-component="slider"]';
+const SLIDE_INTERVAL_MS = 6000;
+
+const states = new Map<string, Map<string, string>>();
+const restoreState = (id: string) => {
+  if (!states.has(id))
+    states.set(id, { store: stores.slider(id), frameRef: null });
+  return states.get(id);
+};
+const restoreIndex = (state: Map<string, string>) => {
+  const slug = state.store.get("slug");
+  if (slug == null) return;
+  const slide = document.querySelector(`[data-slug='${slug}'][data-index]`);
+  const index = slide?.dataset?.index;
+  if (index == null) return;
+  return Number(index);
+};
+const mounted = () => {
+  [...document.querySelectorAll(COMPONENT_QUERY)].forEach((component) => {
+    const state = restoreState(component.id);
+    const index = restoreIndex(state) ?? 0;
+    const slides = [...component.querySelectorAll("li")];
+    slides.forEach((slide) => {
+      if (slide.dataset.index === `${index}`) {
+        slide.setAttribute("aria-current", "true");
+      } else {
+        slide.removeAttribute("aria-current");
+      }
+    });
+  });
+};
+const destroyed = () => {
+  for (const [_, state] of states) {
+    if (state.frameRef == null) continue;
+    cancelAnimationFrame(state.frameRef);
+  }
+};
+
+mounted();
+
+document.addEventListener("astro:before-swap", destroyed);
+document.addEventListener("astro:after-swap", mounted);
+document.addEventListener("astro:page-load", () => {
+  [...document.querySelectorAll(COMPONENT_QUERY)].forEach((component) => {
+    const slides = [...component.querySelectorAll("li")];
+    const images = [...component.querySelectorAll("img")];
+    const state = restoreState(component.id);
+    let paused = false;
+    images.forEach((image) => {
+      image.addEventListener("mouseenter", () => {
+        paused = true;
+      });
+      image.addEventListener("mouseleave", () => {
+        paused = false;
+      });
+    });
+    let timer = SLIDE_INTERVAL_MS;
+    let previous = null;
+    let index = restoreIndex(state) ?? 0;
+    let pending = index;
+    const tick = (timestamp) => {
+      (() => {
+        if (previous == null) previous = timestamp;
+        const delta = timestamp - previous;
+        previous = timestamp;
+        if (paused) return;
+        timer = Math.max(timer - delta, 0);
+        if (timer > 0) return;
+        pending = (index + 1) % slides.length;
+      })();
+      pending = pending % slides.length;
+      pending = pending < 0 ? slides.length + pending : pending;
+      if (pending === index) {
+        state.frameRef = requestAnimationFrame(tick);
+        return;
+      }
+      index = pending;
+      timer = SLIDE_INTERVAL_MS;
+      slides.forEach((slide) => {
+        if (slide.dataset.index === `${index}`) {
+          slide.setAttribute("aria-current", "true");
+          state.store.set("slug", slide.dataset.slug);
+        } else {
+          slide.removeAttribute("aria-current");
+        }
+      });
+      state.frameRef = requestAnimationFrame(tick);
+    };
+    if (slides.length > 1) {
+      state.frameRef = requestAnimationFrame(tick);
+      window.addEventListener("keydown", (event) => {
+        if (event.metaKey || event.ctrlKey) return;
+        switch (event.key) {
+          case "ArrowLeft": {
+            pending -= 1;
+            break;
+          }
+          case "ArrowRight": {
+            pending += 1;
+            break;
+          }
+        }
+      });
+      let touchStartX = 0;
+      let touchStartY = 0;
+      component.addEventListener(
+        "touchstart",
+        (event) => {
+          touchStartX = event.touches[0].clientX;
+          touchStartY = event.touches[0].clientY;
+        },
+        { passive: true },
+      );
+      component.addEventListener(
+        "touchend",
+        (event) => {
+          const dx = event.changedTouches[0].clientX - touchStartX;
+          const dy = event.changedTouches[0].clientY - touchStartY;
+          if (Math.abs(dx) < 30 || Math.abs(dy) > Math.abs(dx)) return;
+          if (dx < 0) {
+            pending += 1;
+          } else {
+            pending -= 1;
+          }
+        },
+        { passive: true },
+      );
+    }
+  });
+});
+</script>

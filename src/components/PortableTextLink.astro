@@ -1,0 +1,20 @@
+---
+import type { Mark, Props as $ } from "astro-portabletext/types";
+
+export type Props = $<Mark<{ href: string }>>;
+
+const {
+  markDef: { href },
+} = Astro.props.node;
+
+const isExternal = /^https?:\/\//.test(href);
+---
+
+<a
+  class="external"
+  href={href}
+  target={isExternal ? "_blank" : undefined}
+  rel={isExternal ? "noopener noreferrer" : undefined}
+>
+  <slot />
+</a>

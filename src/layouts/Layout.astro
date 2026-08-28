@@ -1,23 +1,192 @@
-<!doctype html>
-<html lang="en">
-	<head>
-		<meta charset="utf-8" />
-		<meta name="viewport" content="width=device-width" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<link rel="icon" href="/favicon.ico" />
-		<meta name="generator" content={Astro.generator} />
-		<title>Astro Basics</title>
-	</head>
-	<body>
-		<slot />
-	</body>
-</html>
+---
+import "@/styles/app.scss";
+import { ClientRouter } from "astro:transitions";
+import { ColorSurfaceNormal } from "@design-system/build/js/tokens";
+import type { SanityImageObject } from "@sanity/image-url";
+import * as contents from "@/lib/contents";
+import * as repo from "@/lib/repo";
 
-<style>
-	html,
-	body {
-		margin: 0;
-		width: 100%;
-		height: 100%;
-	}
-</style>
+type Props = {
+  class?: string;
+  title?: string;
+  image?: SanityImageObject & { alt: string };
+};
+
+const OG_IMAGE_WIDTH = 1200;
+const OG_IMAGE_HEIGHT = 630;
+const OG_IMAGE_FORMAT = "png";
+const OG_IMAGE_FIT = "fillmax";
+
+const { result: siteSettings } = await contents.getSiteSettings();
+const { result: profile } = await contents.getProfile();
+
+const { title, image = profile.image } = Astro.props;
+const documentTitle = [siteSettings.title, title].filter((i) => i).join(" - ");
+const imageUrl = repo.urlForImage(image);
+---
+
+<!doctype html>
+<html lang="en-US">
+  <head>
+    <meta charset="utf-8">
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, user-scalable=1"
+    >
+    <link
+      rel="icon"
+      sizes="16x16 32x32 48x48"
+      href="/favicon.ico"
+    >
+    <link
+      rel="icon"
+      sizes="16x16 32x32 48x48"
+      href="/favicon.png"
+    >
+    <meta
+      name="generator"
+      content={Astro.generator}
+    >
+    <meta
+      name="description"
+      content={siteSettings.description}
+    >
+    <meta
+      name="theme-color"
+      content={ColorSurfaceNormal}
+    >
+    <meta
+      property="og:type"
+      content="website"
+    >
+    <meta
+      property="og:site_name"
+      content={siteSettings.title}
+    >
+    <meta
+      property="og:url"
+      content={Astro.url}
+    >
+    <meta
+      property="og:title"
+      content={documentTitle}
+    >
+    <meta
+      property="og:description"
+      content={siteSettings.description}
+    >
+    <meta
+      property="og:image"
+      content={imageUrl.width(OG_IMAGE_WIDTH).height(OG_IMAGE_HEIGHT).fit(OG_IMAGE_FIT).format(OG_IMAGE_FORMAT).url()}
+    >
+    <meta
+      property="og:image:alt"
+      content={image.alt}
+    >
+    <meta
+      property="og:image:width"
+      content={`${OG_IMAGE_WIDTH}`}
+    >
+    <meta
+      property="og:image:height"
+      content={`${OG_IMAGE_HEIGHT}`}
+    >
+    <meta
+      name="twitter:card"
+      content="summary_large_image"
+    >
+    <meta
+      name="twitter:title"
+      content={documentTitle}
+    >
+    <meta
+      name="twitter:description"
+      content={siteSettings.description}
+    >
+    <meta
+      name="twitter:image"
+      content={imageUrl.width(OG_IMAGE_WIDTH).height(OG_IMAGE_HEIGHT).fit(OG_IMAGE_FIT).format(OG_IMAGE_FORMAT).url()}
+    >
+    <meta
+      name="twitter:image:alt"
+      content={image.alt}
+    >
+    <link
+      rel="canonical"
+      href={Astro.url}
+    >
+    <title>{documentTitle}</title>
+    <ClientRouter />
+    <script>
+    const polyfills: Array<Promise<unknown>> = [];
+    if (!("command" in HTMLButtonElement.prototype)) {
+      polyfills.push(import("invokers-polyfill"));
+    }
+    if (!("popover" in HTMLElement.prototype)) {
+      polyfills.push(
+        (async () => {
+          const { apply } = await import("@oddbird/popover-polyfill/fn");
+          apply({ layerName: "reset" });
+        })(),
+      );
+    }
+    await Promise.all(polyfills);
+    </script>
+  </head>
+  <body class:list={["page", Astro.props.class]}>
+    <header class="page-header">
+      <a
+        class="site-title"
+        href="/"
+      >
+        {siteSettings.title}
+      </a>
+      <nav>
+        <a
+          href="/info"
+          aria-current={Astro.url.pathname.startsWith("/info") ? "page" : null}
+        >
+          Info
+        </a>
+        <a
+          href="/projects"
+          aria-current={Astro.url.pathname.startsWith("/projects") ? "page" : null}
+        >
+          Projects
+        </a>
+      </nav>
+      <button
+        type="button"
+        popovertarget="page-menu"
+        popovertargetaction="toggle"
+      >
+        Menu
+      </button>
+    </header>
+    <main class="page-content">
+      <slot />
+    </main>
+    <footer class="page-footer"></footer>
+    <slot name="portal" />
+    <dialog
+      class="page-menu"
+      id="page-menu"
+      popover
+    >
+      <nav>
+        <a
+          href="/info"
+          aria-current={Astro.url.pathname.startsWith("/info") ? "page" : null}
+        >
+          Info
+        </a>
+        <a
+          href="/projects"
+          aria-current={Astro.url.pathname.startsWith("/projects") ? "page" : null}
+        >
+          Projects
+        </a>
+      </nav>
+    </dialog>
+  </body>
+</html>

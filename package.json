@@ -6,16 +6,43 @@
     "node": ">=22.12.0"
   },
   "scripts": {
-    "dev": "astro dev",
-    "build": "astro build",
-    "deploy": "wrangler deploy",
-    "preview": "astro preview",
     "astro": "astro",
-    "generate-types": "wrangler types"
+    "build": "bun build:design-system && astro build",
+    "build:design-system": "style-dictionary build -c ./design-system/config.json",
+    "check": "bunx @biomejs/biome check",
+    "check:fix": "bunx @biomejs/biome check --write",
+    "deploy": "wrangler deploy",
+    "deploy:cms": "pushd ./studio-aizawa && bun run deploy",
+    "dev": "astro dev",
+    "dev:cms": "pushd ./studio-aizawa && bun run dev",
+    "preview": "astro preview",
+    "seed": "bun run seed.ts",
+    "schema": "pushd ./studio-aizawa && bun schema:extract",
+    "typegen": "sanity typegen generate",
+    "typegen:wrangler": "wrangler types"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^14.1.4",
+    "@oddbird/popover-polyfill": "^0.7.2",
+    "@sanity/astro": "^3.5.0",
+    "@sanity/client": "^7.25.0",
+    "@sanity/image-url": "^2.1.1",
     "astro": "^7.0.6",
+    "astro-portabletext": "^0.13.0",
+    "groq": "^6.13.2",
+    "invokers-polyfill": "^1.0.4",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-is": "^19.2.8",
+    "sanity": "^6.6.0",
+    "sass": "^1.102.0",
+    "styled-components": "^6.4.4",
     "wrangler": "^4.114.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.13",
+    "@portabletext/types": "^4.0.2",
+    "@types/bun": "^1.4.1",
+    "style-dictionary": "^5.5.1"
   }
 }

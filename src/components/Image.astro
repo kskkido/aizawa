@@ -1,0 +1,59 @@
+---
+import type { SanityAsset, SanityImageObject } from "@sanity/image-url";
+import { urlForImage } from "@/lib/repo";
+import type { SanityImageDimensions } from "@/sanity.types";
+
+type Props = {
+  image: SanityImageObject & {
+    asset: SanityAsset & { metadata: { dimensions: SanityImageDimensions } };
+    alt: string;
+  };
+  width: number;
+  widths?: number[];
+  sizes?: string | string[];
+  fetchpriority?: "high" | null;
+  "transition-name"?: string;
+};
+
+const {
+  image,
+  width,
+  widths = [],
+  sizes = [],
+  fetchpriority = null,
+  "transition-name": transitionName,
+} = Astro.props;
+
+const url = urlForImage(image);
+const { metadata } = image.asset;
+const loading = fetchpriority ? null : "lazy";
+const sizesAttribute = typeof sizes === "string" ? sizes : sizes.join(", ");
+const aspectRatio = `${metadata.dimensions.width} / ${metadata.dimensions.height}`;
+---
+
+<picture>
+  <source
+    srcset={widths.map(w => (
+      `${url.format('webp').width(w).url()} ${w}w`
+    )).join(', ')}
+    sizes={sizesAttribute}
+    type="image/webp"
+  >
+  <img
+    transition:name={transitionName}
+    src={url.width(width).url()}
+    srcset={widths.map(w => (
+      `${url.format('webp').width(w).url()} ${w}w`
+    )).join(', ')}
+    sizes={sizesAttribute}
+    alt={image.alt}
+    fetchpriority={fetchpriority}
+    loading={loading}
+    width={metadata.dimensions.width}
+    height={metadata.dimensions.height}
+    style={{aspectRatio}}
+    data-original-src={url.url()}
+    data-original-width={metadata.dimensions.width}
+    data-original-height={metadata.dimensions.height}
+  >
+</picture>

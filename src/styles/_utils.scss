@@ -1,0 +1,63 @@
+@use "@design-system/build/scss/tokens";
+@use "sass:list" as list;
+@use "sass:map" as map;
+@use "sass:meta" as meta;
+
+@function join-with-dashes($list) {
+  $out: list.nth($list, 1);
+  $length: list.length($list);
+  @if $length > 1 {
+    @for $i from 2 through $length {
+      $item: list.nth($list, $i);
+      $out: "#{$out}-#{$item}";
+    }
+  }
+  @return $out;
+}
+
+@function lookup-token($id, $ids...) {
+  $path: list.join(($id), $ids);
+  $value: map.get(tokens.$tokens, $id, $ids...);
+  @if not $value or meta.type-of($value) == "map" {
+    $list: list.join(($id), $ids);
+    @error "Token not found: #{$list}";
+  }
+  @return $value;
+}
+
+@function color($id, $ids...) {
+  @return lookup-token(color, $id, $ids...);
+}
+
+@function size($category, $id) {
+  @return lookup-token(size, $category, $id);
+}
+
+@function font-family($id, $ids...) {
+  @return lookup-token(font, family, $id, $ids...);
+}
+
+@function font-weight($id) {
+  @return lookup-token(font, weight, $id);
+}
+
+@function spacer($n) {
+  @return calc(#{$n} * #{lookup-token(size, spacer, "1")});
+}
+
+@function border($id) {
+  @return lookup-token(size, border, width, $id);
+}
+
+@function radius($id) {
+  @return lookup-token(size, border, radius, $id);
+}
+
+@function breakpoint($id) {
+  @return lookup-token(breakpoint, $id);
+}
+
+@mixin text($size) {
+  font-size: size(font, $size);
+  line-height: size(line-height, $size);
+}

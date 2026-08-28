@@ -1,0 +1,26 @@
+{
+  "color": {
+    "base": {
+      "white": {
+        "value": "#FFFFFF"
+      },
+      "black": {
+        "value": "#231704"
+      },
+      "beige": {
+        "value": "#F6E9DD"
+      },
+      "gray": {
+        "300": {
+          "value": "#DADADA"
+        },
+        "500": {
+          "value": "#808080"
+        },
+        "900": {
+          "value": "#1F1F1F"
+        }
+      }
+    }
+  }
+}

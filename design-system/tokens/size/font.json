@@ -1,0 +1,38 @@
+{
+  "size": {
+    "font": {
+      "xs": {
+        "value": "0.75rem"
+      },
+      "sm": {
+        "value": "0.875rem"
+      },
+      "md": {
+        "value": "1rem"
+      },
+      "lg": {
+        "value": "1.25rem"
+      },
+      "xl": {
+        "value": "1.5rem"
+      }
+    },
+    "line-height": {
+      "xs": {
+        "value": "1.125rem"
+      },
+      "sm": {
+        "value": "1.3125rem"
+      },
+      "md": {
+        "value": "1.5rem"
+      },
+      "lg": {
+        "value": "1.875rem"
+      },
+      "xl": {
+        "value": "2.25rem"
+      }
+    }
+  }
+}

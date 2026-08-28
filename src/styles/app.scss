@@ -1,0 +1,662 @@
+@use "@design-system/build/scss/tokens" as tokens;
+@use "sass:map" as map;
+@use "./utils" as utils;
+
+$popover-open: ":is(:popover-open, .\\:popover-open)";
+
+@layer reset, layout, component, page, utility;
+
+@layer reset {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  *::focus {
+    outline: none;
+  }
+
+  :root {
+    margin: 0;
+    inline-size: 100%;
+    min-block-size: 100dvh;
+    font-size: max(10px, 0.675em);
+
+    &:has(dialog[open]) {
+      overflow: hidden;
+    }
+
+    &:has(.page-menu#{$popover-open}) {
+      overflow: hidden;
+    }
+  }
+
+  body {
+    margin: 0;
+    inline-size: 100%;
+    min-block-size: 100dvh;
+    font-family: utils.font-family(base);
+    color: utils.color(text, normal);
+    background-color: utils.color(surface, normal);
+  }
+
+  button {
+    display: inline-flex;
+    align-items: center;
+    padding: 0;
+    font: inherit;
+    font-family: inherit;
+    color: inherit;
+    text-align: unset;
+    cursor: pointer;
+    background: inherit;
+    border: 0;
+    border-radius: 0;
+
+    &[disabled] {
+      pointer-events: none;
+    }
+
+    &:has(picture:only-child) {
+      &:focus-visible {
+        outline: none;
+      }
+    }
+  }
+
+  dialog {
+    border: 0;
+    padding: 0;
+    margin: auto;
+  }
+
+  h6,
+  h5,
+  h4,
+  h3,
+  h2,
+  h1 {
+    font-size: 1rem;
+    font-weight: normal;
+    margin: 0;
+    padding: 0;
+  }
+
+  figure {
+    margin: 0;
+
+    & > * + figcaption {
+      margin-block-start: utils.spacer(2);
+    }
+  }
+
+  picture,
+  img {
+    display: block;
+    object-fit: contain;
+    inline-size: 100%;
+    block-size: auto;
+    max-inline-size: 100%;
+    max-block-size: 100%;
+    min-block-size: 1px;
+  }
+
+  a {
+    color: utils.color(text, normal);
+    cursor: pointer;
+    text-decoration: none;
+
+    &:not(.site-title, .external) {
+      color: utils.color(text, muted);
+      font-style: normal;
+
+      &:hover {
+        color: utils.color(text, normal);
+      }
+
+      &[aria-current="page"] {
+        font-style: italic;
+        color: utils.color(text, normal);
+      }
+    }
+
+    &.external {
+      font-style: oblique;
+
+      &:hover {
+        color: utils.color(text, normal);
+        text-decoration: underline;
+      }
+    }
+  }
+
+  ol,
+  ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  p:first-child {
+    margin-block-start: 0;
+  }
+}
+
+@layer layout {
+  $page-content-padding-block: var(
+    --page-content-padding-block,
+    #{utils.spacer(10)}
+  );
+  $page-content-padding-inline: var(
+    --page-content-padding-inline,
+    #{utils.spacer(8)}
+  );
+  $page-header-block-size: var(--page-header-block-size, 56px);
+  $page-header-padding-block: var(
+    --page-header-padding-block,
+    #{utils.spacer(8)}
+  );
+  $page-header-padding-inline: var(
+    --page-header-padding-inline,
+    #{$page-content-padding-inline}
+  );
+
+  .page {
+    --page-content-padding-block: #{utils.spacer(8)};
+    --page-content-padding-inline: #{utils.spacer(4)};
+
+    display: flex;
+    flex-direction: column;
+
+    &-header {
+      position: sticky;
+      inset-block-start: 0;
+      block-size: $page-header-block-size;
+      display: flex;
+      flex-flow: row nowrap;
+      align-items: center;
+      justify-content: space-between;
+      z-index: 1;
+      padding-inline: $page-header-padding-inline;
+      color: #ffffff;
+      mix-blend-mode: difference;
+
+      & > a {
+        color: inherit;
+      }
+
+      & nav {
+        display: none;
+      }
+
+      & button {
+        display: block;
+        background: transparent;
+      }
+    }
+
+    &-content {
+      display: flex;
+      flex-flow: column nowrap;
+      padding-block: $page-content-padding-block;
+      padding-inline: $page-content-padding-inline;
+      flex-grow: 1;
+      border-top: utils.border(sm) solid utils.color(border, normal);
+      transition: opacity 0.3s ease;
+    }
+
+    &-footer {
+      padding-block: utils.spacer(4);
+      padding-inline: utils.spacer(6);
+      border-top: utils.border(sm) solid utils.color(border, normal);
+      transition: opacity 0.3s ease;
+    }
+
+    &:has(&-menu#{$popover-open}) {
+      .page-content {
+        opacity: 0;
+      }
+
+      .page-footer {
+        opacity: 0;
+      }
+    }
+
+    &-menu {
+      position: fixed;
+      inset: #{$page-header-block-size} 0 0 0;
+      inline-size: auto;
+      block-size: auto;
+      max-inline-size: 100%;
+      max-block-size: 100%;
+      padding: 0;
+      padding-inline: $page-content-padding-inline;
+      border: 0;
+      margin: 0;
+      background-color: transparent;
+      transition:
+        opacity 0.3s ease,
+        display 0.3s allow-discrete;
+
+      & nav {
+        @include utils.text(xl);
+
+        display: flex;
+        flex-direction: column;
+        gap: utils.spacer(2);
+        align-items: flex-end;
+      }
+
+      &#{$popover-open} {
+        opacity: 1;
+
+        @starting-style {
+          opacity: 0;
+        }
+      }
+
+      &:not(#{$popover-open}) {
+        pointer-events: none;
+        opacity: 0;
+      }
+    }
+
+    &-full {
+      .page-content {
+        padding-block: 0;
+        padding-inline: 0;
+      }
+    }
+
+    @media only screen and (min-width: #{utils.breakpoint(md)}) {
+      --page-content-padding-block: #{utils.spacer(10)};
+      --page-content-padding-inline: #{utils.spacer(8)};
+
+      &-header {
+        display: block;
+        block-size: auto;
+        position: static;
+        padding-block: $page-header-padding-block;
+        padding-block-end: utils.spacer(12);
+        color: initial;
+        mix-blend-mode: initial;
+
+        & nav {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-start;
+          gap: utils.spacer(1);
+        }
+
+        & button {
+          display: none;
+        }
+
+        & > * + * {
+          margin-block-start: utils.spacer(12);
+        }
+      }
+    }
+  }
+}
+
+@layer component {
+  $stack-sizes: (
+    none: 0,
+    xs: utils.spacer(1),
+    sm: utils.spacer(2),
+    md: utils.spacer(4),
+    lg: utils.spacer(6),
+  );
+
+  $stack-size: var(--stack-size, #{map.get($stack-sizes, md)});
+
+  .stack {
+    display: flex;
+    flex-flow: column nowrap;
+    gap: $stack-size;
+
+    @each $size, $space in $stack-sizes {
+      &.stack-#{$size} {
+        --stack-size: #{$space};
+      }
+    }
+  }
+
+  $cluster-sizes: (
+    none: 0,
+    xs: utils.spacer(1),
+    sm: utils.spacer(2),
+    md: utils.spacer(4),
+    lg: utils.spacer(6),
+  );
+  $cluster-size: var(--cluster-size, #{map.get($cluster-sizes, md)});
+  $cluster-direction: var(--cluster-direction, row);
+
+  .cluster {
+    display: flex;
+    flex-flow: $cluster-direction nowrap;
+    align-items: center;
+    gap: $cluster-size;
+
+    @each $size, $space in $cluster-sizes {
+      &.cluster-#{$size} {
+        --cluster-size: #{$space};
+      }
+    }
+  }
+
+  .slider {
+    counter-reset: slide-index;
+    flex: 1;
+    position: relative;
+    block-size: 100%;
+
+    $slide-gutter: utils.spacer(24);
+
+    &-slide {
+      counter-reset: slide-total var(--sibling-count);
+      @supports (counter-reset: slide-total sibling-count()) {
+        counter-reset: slide-total sibling-count();
+      }
+      counter-increment: slide-index;
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      transition: opacity ease-in 400ms;
+      display: flex;
+      flex-direction: column;
+
+      &:not([aria-current="true"]) img {
+        view-transition-name: none !important;
+      }
+
+      &[aria-current="true"] {
+        opacity: 1;
+        z-index: 1;
+      }
+
+      &-content {
+        flex: 1;
+        display: grid;
+        grid-template-rows: #{$slide-gutter} 1fr #{$slide-gutter};
+        block-size: 0;
+        padding-inline: var(--page-content-padding-inline);
+      }
+
+      &-image {
+        grid-row-start: 2;
+        min-block-size: 0;
+        display: flex;
+        flex-flow: column nowrap;
+        justify-content: center;
+        max-inline-size: 100%;
+        max-block-size: 100%;
+
+        & > *:only-child {
+          display: flex;
+          flex-direction: column;
+          max-block-size: 100%;
+        }
+
+        & img {
+          inline-size: auto;
+          margin-inline: auto;
+        }
+      }
+
+      &-caption {
+        grid-row-start: 3;
+        display: flex;
+        flex-flow: row nowrap;
+        align-items: center;
+        justify-content: space-between;
+
+        &::after {
+          display: block;
+          content: counter(slide-index) " / " counter(slide-total);
+        }
+      }
+    }
+  }
+
+  $card-image-block-size: var(--card-image-block-size, 200px);
+
+  .card {
+    display: grid;
+    grid-template-rows: $card-image-block-size min-content;
+    gap: utils.spacer(4);
+    position: relative;
+
+    & a {
+      color: utils.color(text, normal);
+      font-weight: utils.font-weight(bold);
+
+      &::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+      }
+    }
+  }
+
+  $icon-size: var(--icon-size, 1.25em);
+
+  .icon {
+    & svg {
+      display: block;
+      width: $icon-size;
+      height: $icon-size;
+      color: inherit;
+    }
+  }
+
+  .lightbox {
+    --icon-size: 1.5em;
+
+    position: fixed;
+    inset: 0;
+    max-block-size: 95%;
+    max-inline-size: 90%;
+    overflow: scroll;
+    transition:
+      opacity 0.3s ease,
+      display 0.3s ease allow-discrete;
+
+    &::backdrop {
+      background-color: color(
+        from #{utils.color(surface, normal)} srgb r g b / 0.8
+      );
+      transition:
+        background-color 0.3s ease,
+        display 0.3s ease allow-discrete;
+    }
+
+    &[open] {
+      opacity: 1;
+
+      @starting-style {
+        opacity: 0;
+      }
+    }
+
+    &:not([open]) {
+      pointer-events: none;
+      opacity: 0;
+
+      &::backdrop {
+        background-color: rgb(0 0 0 / 0%);
+      }
+    }
+
+    & header {
+      & button {
+        position: fixed;
+        inset-inline-end: utils.spacer(8);
+        inset-block-start: utils.spacer(8);
+      }
+    }
+
+    & img {
+      cursor: zoom-in;
+    }
+
+    &.zoomed-in {
+      & img {
+        max-inline-size: none;
+        max-block-size: none;
+        inline-size: auto;
+        cursor: zoom-out;
+      }
+    }
+  }
+}
+
+@layer page {
+  .info {
+    display: flex;
+    flex-flow: column nowrap;
+    gap: utils.spacer(4) utils.spacer(16);
+
+    @media only screen and (min-width: #{utils.breakpoint(md)}) {
+      display: grid;
+      grid-template-columns: 1fr #{utils.spacer(170)};
+      justify-content: space-between;
+
+      & > *:last-child {
+        order: -1;
+      }
+    }
+  }
+
+  .project {
+    display: grid;
+    grid-template:
+      "header" max-content
+      "main" 1fr
+      "aside" max-content
+      "footer" max-content;
+    gap: utils.spacer(8);
+    flex-grow: 1;
+
+    & > aside {
+      display: contents;
+
+      & > header {
+        grid-area: header;
+
+        & h1 {
+          color: utils.color(text, normal);
+          font-weight: utils.font-weight(bold);
+        }
+      }
+
+      & > header + * {
+        grid-area: aside;
+      }
+    }
+
+    & > main {
+      grid-area: main;
+
+      & li {
+        display: flex;
+        gap: utils.spacer(4);
+
+        & button {
+          display: block;
+          flex: 1;
+          min-inline-size: 0;
+        }
+      }
+    }
+
+    & > footer {
+      --cluster-direction: column;
+
+      grid-area: footer;
+      margin-block-start: utils.spacer(8);
+
+      & :is(picture, img) {
+        object-fit: cover;
+      }
+    }
+
+    @media only screen and (min-width: #{utils.breakpoint(md)}) {
+      grid-template:
+        "aside main" 1fr
+        "aside footer" max-content / 2fr 5fr;
+      gap: utils.spacer(24) utils.spacer(16);
+
+      & > aside {
+        display: flex;
+        flex-direction: column;
+        gap: utils.spacer(8);
+        position: sticky;
+        inset-block-start: var(--page-content-padding-block);
+        grid-area: aside;
+        align-self: start;
+      }
+
+      & > footer {
+        --card-image-block-size: 180px;
+        --cluster-direction: row !important;
+
+        & > * {
+          inline-size: 22.75%;
+        }
+      }
+    }
+  }
+
+  .projects {
+    flex-grow: 1;
+
+    & > ul {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: utils.spacer(8);
+
+      & li {
+        display: grid;
+        grid-template-rows: 400px 1fr;
+        gap: utils.spacer(4);
+        block-size: 100%;
+
+        & .card {
+          display: grid;
+          grid-template-rows: subgrid;
+          grid-row: 1 / -1;
+          position: relative;
+        }
+      }
+    }
+  }
+}
+
+@layer utility {
+  .justify-between {
+    justify-content: space-between;
+  }
+
+  .justify-center {
+    justify-content: center;
+  }
+
+  .align-center {
+    align-items: center;
+  }
+
+  .ml-auto {
+    margin-inline-start: auto;
+  }
+
+  .overflow-hidden {
+    overflow: hidden;
+  }
+
+  .zoom-in {
+    cursor: zoom-in;
+  }
+}

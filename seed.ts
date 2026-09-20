@@ -26,6 +26,7 @@ const client = createClient({
   dataset: process.env.SANITY_STUDIO_DATASET,
   apiVersion: "2024-01-01",
   token: process.env.SANITY_API_TOKEN,
+  perspective: "published",
   useCdn: false,
 });
 
@@ -83,11 +84,16 @@ function getOrderedImageFiles(
 
 async function uploadImage(
   filePath: string,
+  altText?: string,
 ): Promise<{ _id: string; _type: string }> {
   const blob = await openAsBlob(filePath);
-  return client.assets.upload("image", blob, {
+  const asset = await client.assets.upload("image", blob, {
     filename: filePath.split("/").pop(),
   });
+  if (altText) {
+    await client.patch(asset._id).set({ altText }).commit();
+  }
+  return asset;
 }
 
 async function seedProject(slug: string) {
@@ -104,23 +110,12 @@ async function seedProject(slug: string) {
     `Seeding "${metadata.title}" (${slug}) — ${imageFiles.length} images`,
   );
 
-  const mediaIds = [];
+  const assetIds = [];
   for (const file of imageFiles) {
     const filePath = join(projectDir, file);
     console.log(`  Uploading ${file}...`);
-    const asset = await uploadImage(filePath);
-    const media = await client.create({
-      _type: "media",
-      image: {
-        _type: "image",
-        asset: {
-          _type: "reference",
-          _ref: asset._id,
-        },
-      },
-      alt: metadata.title,
-    });
-    mediaIds.push(media._id);
+    const asset = await uploadImage(filePath, metadata.title);
+    assetIds.push(asset._id);
   }
 
   const document = {
@@ -132,14 +127,17 @@ async function seedProject(slug: string) {
       current: slug,
     },
     content: descriptionToPortableText(metadata.description),
-    rows: mediaIds.map((id) => ({
+    rows: assetIds.map((id) => ({
       _type: "row",
       _key: crypto.randomUUID().slice(0, 8),
-      images: [
+      media: [
         {
-          _type: "reference",
+          _type: "image",
           _key: crypto.randomUUID().slice(0, 8),
-          _ref: id,
+          asset: {
+            _type: "reference",
+            _ref: id,
+          },
         },
       ],
     })),
@@ -164,8 +162,7 @@ async function deleteProject(slug: string) {
     if (referencingIds.length > 0) {
       const tx = client.transaction();
       for (const refId of referencingIds) {
-        // Unset slides array which contains project references
-        tx.patch(refId, (p) => p.unset(["slides"]));
+        tx.patch(refId, (p) => p.unset(["slides", "items"]));
       }
       await tx.commit();
     }
@@ -234,10 +231,12 @@ async function seedProfile() {
 
   const filePath = join(PROFILE_DIR, metadata.image.url);
   console.log(`  Uploading ${metadata.image.url}...`);
-  const imageAsset = await uploadImage(filePath);
+  const imageAsset = await uploadImage(filePath, metadata.image.alt);
 
-  const media = await client.create({
-    _type: "media",
+  const document = {
+    _id: "profile",
+    _type: "profile",
+    description: linesToPortableText(metadata.description),
     image: {
       _type: "image",
       asset: {
@@ -245,42 +244,10 @@ async function seedProfile() {
         _ref: imageAsset._id,
       },
     },
-    alt: metadata.image.alt,
-    caption: linesToPortableText([metadata.image.caption]),
-  });
-
-  const document = {
-    _id: "profile",
-    _type: "profile",
-    content: linesToPortableText(metadata.description),
-    image: {
-      _type: "reference",
-      _ref: media._id,
-    },
   };
 
   const result = await client.create(document);
   console.log(`  Created profile ${result._id}`);
-}
-
-async function deleteAllMedia() {
-  const ids: string[] = await client.fetch(`*[_type == "media"]._id`);
-  if (ids.length === 0) return;
-  for (const id of ids) {
-    const referencingIds: string[] = await client.fetch(
-      `*[references($id)]._id`,
-      { id },
-    );
-    if (referencingIds.length > 0) {
-      const tx = client.transaction();
-      for (const refId of referencingIds) {
-        tx.patch(refId, (p) => p.unset(["image", "rows"]));
-      }
-      await tx.commit();
-    }
-    await client.delete(id);
-  }
-  console.log(`  Deleted ${ids.length} media document(s)`);
 }
 
 async function seedAllProjects() {
@@ -288,7 +255,6 @@ async function seedAllProjects() {
   for (const slug of projects) {
     await deleteProject(slug);
   }
-  await deleteAllMedia();
   for (const slug of projects) {
     await seedProject(slug);
   }
@@ -298,7 +264,6 @@ async function seedAllProjects() {
 async function seedHome() {
   console.log("Seeding home...");
 
-  // Delete all existing home documents
   const ids: string[] = await client.fetch(`*[_type == "home"]._id`);
   for (const id of ids) {
     await client.delete(id);
@@ -324,10 +289,31 @@ async function seedHome() {
   console.log(`  Created home with ${projects.length} slides`);
 }
 
+async function seedProjects() {
+  console.log("Seeding projects...");
+
+  const projects: Array<{ _id: string }> = await client.fetch(
+    `*[_type == "project"]|order(_id desc){ _id }`,
+  );
+
+  await client.createOrReplace({
+    _id: "projects",
+    _type: "projects",
+    items: projects.map(({ _id }) => ({
+      _type: "reference",
+      _key: crypto.randomUUID().slice(0, 8),
+      _ref: _id,
+    })),
+  });
+
+  console.log(`  Created projects with ${projects.length} items`);
+}
+
 const SEEDS = {
   project: seedAllProjects,
   profile: seedProfile,
   home: seedHome,
+  projects: seedProjects,
 };
 
 const VALID_TYPES = Object.keys(SEEDS);

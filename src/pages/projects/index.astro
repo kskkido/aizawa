@@ -10,7 +10,7 @@ const { result: projects } = await contents.getProjects();
 <Layout title="Projects">
   <div class="projects">
     <ul>
-      {projects.map((project, i) => (
+      {projects.items.map((project, i) => (
         <li>
           <Card>
             <Image

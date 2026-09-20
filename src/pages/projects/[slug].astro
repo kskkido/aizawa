@@ -1,8 +1,8 @@
 ---
-import Close from "@/assets/close.svg";
 import Card from "@/components/Card.astro";
 import Image from "@/components/Image.astro";
 import PortableText from "@/components/PortableText.astro";
+import Video from "@/components/Video.astro";
 import Layout from "@/layouts/Layout.astro";
 import * as contents from "@/lib/contents";
 
@@ -13,7 +13,7 @@ const CARD_IMAGE_SIZES =
 export async function getStaticPaths() {
   const { result: projects } = await contents.getProjects();
 
-  return projects.map(({ slug }) => {
+  return projects.items.map(({ slug }) => {
     return {
       params: {
         slug: slug.current,
@@ -53,17 +53,22 @@ const { result: nextProject } = await contents.getNextProject(project._id);
       <ul class="stack">
         {project.rows.map((row, y) => (
           <li class="cluster justify-between">
-            {row.images.map((image, x) => (
-              <button class="zoom-in" type="button" command="show-modal" commandfor="lightbox">
+            {row.media.map((item, x) => (
+              item._type === "video" ? (
+                <Video
+                  transition-name={y === 0 && x === 0 ? `${project.slug.current}-0` : undefined}
+                  video={item}
+                />
+              ) : (
                 <Image
                   transition-name={y === 0 && x === 0 ? `${project.slug.current}-0` : undefined}
-                  image={image}
+                  image={item}
                   width={640}
                   widths={[320, 640, 800, 960, 1280, 1600]}
-                  sizes={`(max-width: 720px) ${Math.floor(100 / row.images.length)}vw, calc((100vw - 90px) * 5 / 7 / ${row.images.length})`}
+                  sizes={`(max-width: 720px) ${Math.floor(100 / row.media.length)}vw, calc((100vw - 90px) * 5 / 7 / ${row.media.length})`}
                   fetchpriority={y === 0 ? 'high' : null}
                 />
-              </button>
+              )
             ))}
           </li>
         ))}
@@ -74,7 +79,6 @@ const { result: nextProject } = await contents.getNextProject(project._id);
         <Card>
           <Image
             slot="image"
-            transition-name={`${nextProject.slug.current}-0`}
             image={nextProject.image}
             width={640}
             widths={CARD_IMAGE_WIDTHS}
@@ -90,7 +94,6 @@ const { result: nextProject } = await contents.getNextProject(project._id);
         <Card class="ml-auto">
           <Image
             slot="image"
-            transition-name={`${previousProject.slug.current}-0`}
             image={previousProject.image}
             width={640}
             widths={CARD_IMAGE_WIDTHS}
@@ -104,42 +107,13 @@ const { result: nextProject } = await contents.getNextProject(project._id);
       )}
     </footer>
   </article>
-  <dialog
-    id="lightbox"
-    class="lightbox"
-    closedby="any"
-    slot="portal"
-  >
-    <header>
-      <button
-        type="button"
-        autofocus
-        command="close"
-        commandfor="lightbox"
-        aria-label="Close lightbox"
-      >
-        <span class="icon">
-          <Close />
-        </span>
-      </button>
-    </header>
-    <img
-      loading="lazy"
-      alt="placeholder"
-    >
-  </dialog>
 </Layout>
 <script>
 import * as stores from "@/lib/stores";
 
 const COMPONENT_QUERY = '[data-component="project"]';
-const LIGHTBOX_QUERY = "#lightbox";
-const LIGHTBOX_IMAGE_QUERY = "#lightbox img";
-const LIGHTBOX_CLOSE_QUERY = "#lightbox button";
-const LIGHTBOX_TRIGGER_QUERY = 'button[commandfor="lightbox"]';
 
 const store = stores.slider("/");
-const subscriptions: Array<() => void> = [];
 
 const mounted = () => {
   [...document.querySelectorAll(COMPONENT_QUERY)].forEach((component) => {
@@ -148,80 +122,9 @@ const mounted = () => {
     if (!slug) return;
     store.set("slug", slug);
   });
-  [...document.querySelectorAll(LIGHTBOX_TRIGGER_QUERY)].forEach((trigger) => {
-    if (!(trigger instanceof HTMLElement)) return;
-    trigger.addEventListener("click", handleLightboxTrigger);
-    subscriptions.push(() => {
-      trigger.removeEventListener("click", handleLightboxTrigger);
-    });
-  });
-  [...document.querySelectorAll(LIGHTBOX_QUERY)].forEach((lightbox) => {
-    if (!(lightbox instanceof HTMLElement)) return;
-    lightbox.addEventListener("close", handleLightboxClose);
-    subscriptions.push(() => {
-      lightbox.removeEventListener("close", handleLightboxClose);
-    });
-  });
-  [...document.querySelectorAll(LIGHTBOX_IMAGE_QUERY)].forEach((image) => {
-    if (!(image instanceof HTMLElement)) return;
-    image.addEventListener("click", handleLightboxToggleZoom);
-    subscriptions.push(() => {
-      image.removeEventListener("click", handleLightboxToggleZoom);
-    });
-  });
-};
-const destroyed = () => {
-  subscriptions.forEach((subscription) => {
-    subscription();
-  });
-  subscriptions.splice(0, -1);
-};
-
-const handleLightboxToggleZoom = (event: PointerEvent) => {
-  const trigger = event.currentTarget;
-  if (!(trigger instanceof HTMLElement)) return;
-  const lightbox = trigger.closest("dialog");
-  if (!(lightbox instanceof HTMLElement)) return;
-  const rect = trigger.getBoundingClientRect();
-
-  lightbox.classList.toggle("zoomed-in");
-
-  if (lightbox.classList.contains("zoomed-in")) {
-    const ratioX = (event.offsetX - rect.left) / rect.width;
-    const ratioY = (event.offsetY - rect.top) / rect.height;
-    lightbox.scrollLeft =
-      lightbox.scrollWidth * ratioX - lightbox.clientWidth / 2;
-    lightbox.scrollTop =
-      lightbox.scrollHeight * ratioY - lightbox.clientHeight / 2;
-  } else {
-    lightbox.scrollLeft = 0;
-    lightbox.scrollTop = 0;
-  }
-};
-
-const handleLightboxClose = (event: Event) => {
-  const lightbox = event.target;
-  if (!(lightbox instanceof HTMLDialogElement)) return;
-  lightbox.classList.remove("zoomed-in");
-};
-
-const handleLightboxTrigger = (event: PointerEvent) => {
-  const trigger = event.currentTarget;
-  if (!(trigger instanceof HTMLElement)) return;
-  const target = document.querySelector(LIGHTBOX_IMAGE_QUERY);
-  if (!(target instanceof HTMLImageElement)) return;
-  const image = trigger.querySelector("img[data-original-src]");
-  if (!(image instanceof HTMLElement)) return;
-  if (image.dataset.originalSrc) target.src = image.dataset.originalSrc;
-  const height = parseInt(image.dataset.originalHeight ?? "", 10);
-  if (Number.isFinite(height)) target.height = height;
-  const width = parseInt(image.dataset.originalWidth ?? "", 10);
-  if (Number.isFinite(width)) target.width = width;
-  target.style.aspectRatio = image.style.aspectRatio;
 };
 
 mounted();
 
-document.addEventListener("astro:before-swap", destroyed);
 document.addEventListener("astro:after-swap", mounted);
 </script>

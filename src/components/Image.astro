@@ -34,26 +34,44 @@ const aspectRatio = `${metadata.dimensions.width} / ${metadata.dimensions.height
 <picture>
   <source
     srcset={widths.map(w => (
-      `${url.format('webp').width(w).url()} ${w}w`
+      `${url.auto('format').width(w).url()} ${w}w`
     )).join(', ')}
     sizes={sizesAttribute}
     type="image/webp"
   >
-  <img
-    transition:name={transitionName}
-    src={url.width(width).url()}
-    srcset={widths.map(w => (
-      `${url.format('webp').width(w).url()} ${w}w`
-    )).join(', ')}
-    sizes={sizesAttribute}
-    alt={image.alt}
-    fetchpriority={fetchpriority}
-    loading={loading}
-    width={metadata.dimensions.width}
-    height={metadata.dimensions.height}
-    style={{aspectRatio}}
-    data-original-src={url.url()}
-    data-original-width={metadata.dimensions.width}
-    data-original-height={metadata.dimensions.height}
-  >
+  {transitionName ? (
+    <img
+      transition:name={transitionName}
+      src={url.width(width).url()}
+      srcset={widths.map(w => (
+                  `${url.format('webp').width(w).url()} ${w}w`
+                                  )).join(', ')}
+      sizes={sizesAttribute}
+      alt={image.alt}
+      fetchpriority={fetchpriority}
+      loading={loading}
+      width={metadata.dimensions.width}
+      height={metadata.dimensions.height}
+      style={{aspectRatio}}
+      data-original-src={url.url()}
+      data-original-width={metadata.dimensions.width}
+      data-original-height={metadata.dimensions.height}
+    />
+  ) : (
+    <img
+      src={url.width(width).url()}
+      srcset={widths.map(w => (
+            `${url.format('webp').width(w).url()} ${w}w`
+                )).join(', ')}
+      sizes={sizesAttribute}
+      alt={image.alt}
+      fetchpriority={fetchpriority}
+      loading={loading}
+      width={metadata.dimensions.width}
+      height={metadata.dimensions.height}
+      style={{aspectRatio}}
+      data-original-src={url.url()}
+      data-original-width={metadata.dimensions.width}
+      data-original-height={metadata.dimensions.height}
+    />)}
 </picture>

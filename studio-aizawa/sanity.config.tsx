@@ -6,9 +6,15 @@ import {
   defineType,
 } from "sanity";
 import { structureTool } from "sanity/structure";
+import { media } from "sanity-plugin-media";
 
 const singletonActions = new Set(["publish", "discardChanges", "restore"]);
-const singletonTypes = new Set(["site-settings", "home", "profile"]);
+const singletonTypes = new Set([
+  "site-settings",
+  "home",
+  "profile",
+  "projects",
+]);
 
 export default defineConfig({
   name: "default",
@@ -37,12 +43,19 @@ export default defineConfig({
               .title("Profile")
               .id("profile")
               .child(S.document().schemaType("profile").documentId("profile")),
+            S.listItem()
+              .title("Projects")
+              .id("projects")
+              .child(
+                S.document().schemaType("projects").documentId("projects"),
+              ),
             ...S.documentTypeListItems().filter((listItem) => {
               const id = listItem.getId();
               return id && !singletonTypes.has(id);
             }),
           ]),
     }),
+    media(),
     visionTool(),
   ],
   schema: {
@@ -73,8 +86,8 @@ export default defineConfig({
         fields: [
           defineField({
             type: "array",
-            name: "content",
-            title: "Content",
+            name: "description",
+            title: "Description",
             of: [
               defineArrayMember({
                 type: "block",
@@ -129,10 +142,38 @@ export default defineConfig({
             ],
           }),
           defineField({
-            type: "reference",
+            type: "image",
             name: "image",
             title: "Image",
-            to: [{ type: "media" }],
+            fields: [
+              defineField({
+                type: "array",
+                name: "caption",
+                title: "Caption",
+                of: [
+                  defineArrayMember({
+                    type: "block",
+                    styles: [{ title: "Normal", value: "normal" }],
+                    marks: {
+                      annotations: [
+                        {
+                          title: "URL",
+                          name: "link",
+                          type: "object",
+                          fields: [
+                            {
+                              title: "URL",
+                              name: "href",
+                              type: "url",
+                            },
+                          ],
+                        },
+                      ],
+                    },
+                  }),
+                ],
+              }),
+            ],
           }),
         ],
       }),
@@ -156,55 +197,24 @@ export default defineConfig({
       }),
       defineType({
         type: "document",
-        name: "media",
-        title: "Image",
+        name: "projects",
+        title: "Projects",
         fields: [
           defineField({
-            type: "image",
-            name: "image",
-            title: "Image",
-            validation: (rule) => rule.required(),
-          }),
-          defineField({
-            type: "string",
-            name: "alt",
-            title: "Alternative text",
-            validation: (rule) => rule.required(),
-          }),
-          defineField({
             type: "array",
-            name: "caption",
-            title: "Caption",
+            name: "items",
+            title: "Projects",
             of: [
               defineArrayMember({
-                type: "block",
-                styles: [{ title: "Normal", value: "normal" }],
-                marks: {
-                  annotations: [
-                    {
-                      title: "URL",
-                      name: "link",
-                      type: "object",
-                      fields: [
-                        {
-                          title: "URL",
-                          name: "href",
-                          type: "url",
-                        },
-                      ],
-                    },
-                  ],
-                },
+                type: "reference",
+                to: [{ type: "project" }],
               }),
             ],
+            options: {
+              layout: "grid",
+            },
           }),
         ],
-        preview: {
-          select: {
-            title: "alt",
-            media: "image",
-          },
-        },
       }),
       defineType({
         type: "document",
@@ -282,25 +292,41 @@ export default defineConfig({
                 fields: [
                   defineField({
                     type: "array",
-                    name: "images",
-                    title: "Images",
+                    name: "media",
+                    title: "Media",
                     of: [
                       defineArrayMember({
-                        type: "reference",
-                        to: [{ type: "media" }],
+                        type: "image",
+                        name: "image",
+                        title: "Image",
+                      }),
+                      defineArrayMember({
+                        type: "file",
+                        name: "video",
+                        title: "Video",
+                        options: {
+                          accept: "video/*",
+                        },
+                        fields: [
+                          defineField({
+                            type: "image",
+                            name: "poster",
+                            title: "Poster",
+                          }),
+                        ],
                       }),
                     ],
-                    validation: (rule) => rule.required().min(1).max(3),
+                    validation: (rule) => rule.required().min(1).max(4),
                   }),
                 ],
                 preview: {
                   select: {
-                    images: "images",
+                    media: "media",
                   },
-                  prepare({ images }) {
-                    const count = images?.length ?? 0;
+                  prepare({ media }) {
+                    const count = media?.length ?? 0;
                     return {
-                      title: `Row — ${count} image${count === 1 ? "" : "s"}`,
+                      title: `Row — ${count} item${count === 1 ? "" : "s"}`,
                     };
                   },
                 },
@@ -309,6 +335,13 @@ export default defineConfig({
             validation: (rule) => rule.required(),
           }),
         ],
+        preview: {
+          select: {
+            title: "title",
+            subtitle: "subtitle",
+            media: "rows.0.media.0",
+          },
+        },
       }),
     ],
     templates: (templates) =>

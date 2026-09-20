@@ -15,11 +15,11 @@
 export declare const internalGroqTypeReferenceTo: unique symbol;
 
 // Source: studio-aizawa/schema.json
-export type MediaReference = {
+export type SanityImageAssetReference = {
   _ref: string;
   _type: "reference";
   _weak?: boolean;
-  [internalGroqTypeReferenceTo]?: "media";
+  [internalGroqTypeReferenceTo]?: "sanity.imageAsset";
 };
 
 export type Project = {
@@ -50,14 +50,33 @@ export type Project = {
     _key: string;
   }>;
   rows: Array<{
-    images: Array<
-      {
-        _key: string;
-      } & MediaReference
-    >;
+    images: Array<{
+      asset?: SanityImageAssetReference;
+      media?: unknown;
+      hotspot?: SanityImageHotspot;
+      crop?: SanityImageCrop;
+      _type: "image";
+      _key: string;
+    }>;
     _type: "row";
     _key: string;
   }>;
+};
+
+export type SanityImageCrop = {
+  _type: "sanity.imageCrop";
+  top: number;
+  bottom: number;
+  left: number;
+  right: number;
+};
+
+export type SanityImageHotspot = {
+  _type: "sanity.imageHotspot";
+  x: number;
+  y: number;
+  height: number;
+  width: number;
 };
 
 export type Slug = {
@@ -71,6 +90,19 @@ export type ProjectReference = {
   _type: "reference";
   _weak?: boolean;
   [internalGroqTypeReferenceTo]?: "project";
+};
+
+export type Projects = {
+  _id: string;
+  _type: "projects";
+  _createdAt: string;
+  _updatedAt: string;
+  _rev: string;
+  items?: Array<
+    {
+      _key: string;
+    } & ProjectReference
+  >;
 };
 
 export type Home = {
@@ -117,64 +149,31 @@ export type Profile = {
     _type: "block";
     _key: string;
   }>;
-  image?: MediaReference;
-};
-
-export type SanityImageAssetReference = {
-  _ref: string;
-  _type: "reference";
-  _weak?: boolean;
-  [internalGroqTypeReferenceTo]?: "sanity.imageAsset";
-};
-
-export type Media = {
-  _id: string;
-  _type: "media";
-  _createdAt: string;
-  _updatedAt: string;
-  _rev: string;
-  image: {
+  image?: {
     asset?: SanityImageAssetReference;
     media?: unknown;
     hotspot?: SanityImageHotspot;
     crop?: SanityImageCrop;
+    caption?: Array<{
+      children?: Array<{
+        marks?: Array<string>;
+        text?: string;
+        _type: "span";
+        _key: string;
+      }>;
+      style?: "normal";
+      listItem?: "bullet" | "number";
+      markDefs?: Array<{
+        href?: string;
+        _type: "link";
+        _key: string;
+      }>;
+      level?: number;
+      _type: "block";
+      _key: string;
+    }>;
     _type: "image";
   };
-  alt: string;
-  caption?: Array<{
-    children?: Array<{
-      marks?: Array<string>;
-      text?: string;
-      _type: "span";
-      _key: string;
-    }>;
-    style?: "normal";
-    listItem?: "bullet" | "number";
-    markDefs?: Array<{
-      href?: string;
-      _type: "link";
-      _key: string;
-    }>;
-    level?: number;
-    _type: "block";
-    _key: string;
-  }>;
-};
-
-export type SanityImageCrop = {
-  _type: "sanity.imageCrop";
-  top: number;
-  bottom: number;
-  left: number;
-  right: number;
-};
-
-export type SanityImageHotspot = {
-  _type: "sanity.imageHotspot";
-  x: number;
-  y: number;
-  height: number;
-  width: number;
 };
 
 export type SiteSettings = {
@@ -185,6 +184,32 @@ export type SiteSettings = {
   _rev: string;
   title: string;
   description: string;
+};
+
+export type MediaFolderReference = {
+  _ref: string;
+  _type: "reference";
+  _weak?: boolean;
+  [internalGroqTypeReferenceTo]?: "media.folder";
+};
+
+export type MediaFolder = {
+  _id: string;
+  _type: "media.folder";
+  _createdAt: string;
+  _updatedAt: string;
+  _rev: string;
+  name?: string;
+  parent?: MediaFolderReference;
+};
+
+export type MediaTag = {
+  _id: string;
+  _type: "media.tag";
+  _createdAt: string;
+  _updatedAt: string;
+  _rev: string;
+  name?: Slug;
 };
 
 export type SanityImagePaletteSwatch = {
@@ -285,17 +310,19 @@ export type Geopoint = {
 };
 
 export type AllSanitySchemaTypes =
-  | MediaReference
-  | Project
-  | Slug
-  | ProjectReference
-  | Home
-  | Profile
   | SanityImageAssetReference
-  | Media
+  | Project
   | SanityImageCrop
   | SanityImageHotspot
+  | Slug
+  | ProjectReference
+  | Projects
+  | Home
+  | Profile
   | SiteSettings
+  | MediaFolderReference
+  | MediaFolder
+  | MediaTag
   | SanityImagePaletteSwatch
   | SanityImagePalette
   | SanityImageDimensions
@@ -320,63 +347,19 @@ export type SiteSettingsQueryResult = {
 
 // Source: src/lib/contents.ts
 // Variable: homeQuery
-// Query: *[_type == "home"]{  slides[]->{title,subtitle,slug,"image": rows[0].images[0]->{  alt,  caption,  "asset": image.asset->{    ...,    metadata { dimensions }  }}}  }[0]
+// Query: *[_type == "home"]{  slides[]->{title,subtitle,slug,"image": rows[0].media[0]{  ...,  "alt": asset->altText,  asset->{    ...,    metadata { dimensions }  }}}  }[0]
 export type HomeQueryResult = {
   slides: Array<{
     title: string;
     subtitle: string;
     slug: Slug | null;
-    image: {
-      alt: string;
-      caption: Array<{
-        children?: Array<{
-          marks?: Array<string>;
-          text?: string;
-          _type: "span";
-          _key: string;
-        }>;
-        style?: "normal";
-        listItem?: "bullet" | "number";
-        markDefs?: Array<{
-          href?: string;
-          _type: "link";
-          _key: string;
-        }>;
-        level?: number;
-        _type: "block";
-        _key: string;
-      }> | null;
-      asset: {
-        _id: string;
-        _type: "sanity.imageAsset";
-        _createdAt: string;
-        _updatedAt: string;
-        _rev: string;
-        originalFilename?: string;
-        label?: string;
-        title?: string;
-        description?: string;
-        altText?: string;
-        sha1hash: string;
-        extension: string;
-        mimeType: string;
-        size: number;
-        assetId: string;
-        uploadId?: string;
-        path: string;
-        url: string;
-        metadata: {
-          dimensions: SanityImageDimensions | null;
-        } | null;
-        source?: SanityAssetSourceData;
-      } | null;
-    } | null;
+    image: null;
   }> | null;
 } | null;
 
 // Source: src/lib/contents.ts
 // Variable: profileQuery
-// Query: *[_type == "profile"]{    ...,    "image": image->{  alt,  caption,  "asset": image.asset->{    ...,    metadata { dimensions }  }}  }[0]
+// Query: *[_type == "profile"]{    ...,    "image": image{  ...,  "alt": asset->altText,  asset->{    ...,    metadata { dimensions }  }}  }[0]
 export type ProfileQueryResult = {
   _id: string;
   _type: "profile";
@@ -409,25 +392,6 @@ export type ProfileQueryResult = {
     _key: string;
   }>;
   image: {
-    alt: string;
-    caption: Array<{
-      children?: Array<{
-        marks?: Array<string>;
-        text?: string;
-        _type: "span";
-        _key: string;
-      }>;
-      style?: "normal";
-      listItem?: "bullet" | "number";
-      markDefs?: Array<{
-        href?: string;
-        _type: "link";
-        _key: string;
-      }>;
-      level?: number;
-      _type: "block";
-      _key: string;
-    }> | null;
     asset: {
       _id: string;
       _type: "sanity.imageAsset";
@@ -452,59 +416,54 @@ export type ProfileQueryResult = {
       } | null;
       source?: SanityAssetSourceData;
     } | null;
+    media?: unknown;
+    hotspot?: SanityImageHotspot;
+    crop?: SanityImageCrop;
+    caption?: Array<{
+      children?: Array<{
+        marks?: Array<string>;
+        text?: string;
+        _type: "span";
+        _key: string;
+      }>;
+      style?: "normal";
+      listItem?: "bullet" | "number";
+      markDefs?: Array<{
+        href?: string;
+        _type: "link";
+        _key: string;
+      }>;
+      level?: number;
+      _type: "block";
+      _key: string;
+    }>;
+    _type: "image";
+    alt: string | null;
   } | null;
 } | null;
 
 // Source: src/lib/contents.ts
 // Variable: projectsQuery
-// Query: *[_type == "project"]|order(_id desc){    ...,    "image": rows[0].images[0]->{  alt,  caption,  "asset": image.asset->{    ...,    metadata { dimensions }  }}  }
-export type ProjectsQueryResult = Array<{
-  _id: string;
-  _type: "project";
-  _createdAt: string;
-  _updatedAt: string;
-  _rev: string;
-  title: string;
-  subtitle: string;
-  slug?: Slug;
-  content?: Array<{
-    children?: Array<{
-      marks?: Array<string>;
-      text?: string;
-      _type: "span";
-      _key: string;
-    }>;
-    style?: "blockquote" | "h1" | "h2" | "h3" | "h4" | "normal";
-    listItem?: "bullet";
-    markDefs?: Array<{
-      href?: string;
-      _type: "link";
-      _key: string;
-    }>;
-    level?: number;
-    _type: "block";
-    _key: string;
-  }>;
-  rows: Array<{
-    images: Array<
-      {
-        _key: string;
-      } & MediaReference
-    >;
-    _type: "row";
-    _key: string;
-  }>;
-  image: {
-    alt: string;
-    caption: Array<{
+// Query: *[_type == "projects"][0]{    "items": items[]->{      ...,      "image": rows[0].media[0]{  ...,  "alt": asset->altText,  asset->{    ...,    metadata { dimensions }  }}    }  }
+export type ProjectsQueryResult = {
+  items: Array<{
+    _id: string;
+    _type: "project";
+    _createdAt: string;
+    _updatedAt: string;
+    _rev: string;
+    title: string;
+    subtitle: string;
+    slug?: Slug;
+    content?: Array<{
       children?: Array<{
         marks?: Array<string>;
         text?: string;
         _type: "span";
         _key: string;
       }>;
-      style?: "normal";
-      listItem?: "bullet" | "number";
+      style?: "blockquote" | "h1" | "h2" | "h3" | "h4" | "normal";
+      listItem?: "bullet";
       markDefs?: Array<{
         href?: string;
         _type: "link";
@@ -513,37 +472,26 @@ export type ProjectsQueryResult = Array<{
       level?: number;
       _type: "block";
       _key: string;
-    }> | null;
-    asset: {
-      _id: string;
-      _type: "sanity.imageAsset";
-      _createdAt: string;
-      _updatedAt: string;
-      _rev: string;
-      originalFilename?: string;
-      label?: string;
-      title?: string;
-      description?: string;
-      altText?: string;
-      sha1hash: string;
-      extension: string;
-      mimeType: string;
-      size: number;
-      assetId: string;
-      uploadId?: string;
-      path: string;
-      url: string;
-      metadata: {
-        dimensions: SanityImageDimensions | null;
-      } | null;
-      source?: SanityAssetSourceData;
-    } | null;
-  } | null;
-}>;
+    }>;
+    rows: Array<{
+      images: Array<{
+        asset?: SanityImageAssetReference;
+        media?: unknown;
+        hotspot?: SanityImageHotspot;
+        crop?: SanityImageCrop;
+        _type: "image";
+        _key: string;
+      }>;
+      _type: "row";
+      _key: string;
+    }>;
+    image: null;
+  }> | null;
+} | null;
 
 // Source: src/lib/contents.ts
 // Variable: projectQuery
-// Query: *[_type == "project" && slug.current == $slug]{    ...,    _id,    "image": rows[0].images[0]->{  alt,  caption,  "asset": image.asset->{    ...,    metadata { dimensions }  }},    rows[]{      ...,      images[]->{  alt,  caption,  "asset": image.asset->{    ...,    metadata { dimensions }  }}    }  }[0]
+// Query: *[_type == "project" && slug.current == $slug]{    ...,    _id,    "image": rows[0].media[0]{  ...,  "alt": asset->altText,  asset->{    ...,    metadata { dimensions }  }},    rows[]{      ...,      media[]{  ...,  _type == "image" => {  ...,  "alt": asset->altText,  asset->{    ...,    metadata { dimensions }  }},  _type == "video" => {  ...,  "alt": asset->altText,  "url": asset->url,  "mimeType": asset->mimeType,  poster{    ...,    "alt": asset->altText,    asset->{      ...,      metadata { dimensions }    }  }}}    }  }[0]
 export type ProjectQueryResult = {
   _id: string;
   _type: "project";
@@ -573,103 +521,23 @@ export type ProjectQueryResult = {
   }>;
   rows: Array<{
     images: Array<{
-      alt: string;
-      caption: Array<{
-        children?: Array<{
-          marks?: Array<string>;
-          text?: string;
-          _type: "span";
-          _key: string;
-        }>;
-        style?: "normal";
-        listItem?: "bullet" | "number";
-        markDefs?: Array<{
-          href?: string;
-          _type: "link";
-          _key: string;
-        }>;
-        level?: number;
-        _type: "block";
-        _key: string;
-      }> | null;
-      asset: {
-        _id: string;
-        _type: "sanity.imageAsset";
-        _createdAt: string;
-        _updatedAt: string;
-        _rev: string;
-        originalFilename?: string;
-        label?: string;
-        title?: string;
-        description?: string;
-        altText?: string;
-        sha1hash: string;
-        extension: string;
-        mimeType: string;
-        size: number;
-        assetId: string;
-        uploadId?: string;
-        path: string;
-        url: string;
-        metadata: {
-          dimensions: SanityImageDimensions | null;
-        } | null;
-        source?: SanityAssetSourceData;
-      } | null;
+      asset?: SanityImageAssetReference;
+      media?: unknown;
+      hotspot?: SanityImageHotspot;
+      crop?: SanityImageCrop;
+      _type: "image";
+      _key: string;
     }>;
     _type: "row";
     _key: string;
+    media: null;
   }>;
-  image: {
-    alt: string;
-    caption: Array<{
-      children?: Array<{
-        marks?: Array<string>;
-        text?: string;
-        _type: "span";
-        _key: string;
-      }>;
-      style?: "normal";
-      listItem?: "bullet" | "number";
-      markDefs?: Array<{
-        href?: string;
-        _type: "link";
-        _key: string;
-      }>;
-      level?: number;
-      _type: "block";
-      _key: string;
-    }> | null;
-    asset: {
-      _id: string;
-      _type: "sanity.imageAsset";
-      _createdAt: string;
-      _updatedAt: string;
-      _rev: string;
-      originalFilename?: string;
-      label?: string;
-      title?: string;
-      description?: string;
-      altText?: string;
-      sha1hash: string;
-      extension: string;
-      mimeType: string;
-      size: number;
-      assetId: string;
-      uploadId?: string;
-      path: string;
-      url: string;
-      metadata: {
-        dimensions: SanityImageDimensions | null;
-      } | null;
-      source?: SanityAssetSourceData;
-    } | null;
-  } | null;
+  image: null;
 } | null;
 
 // Source: src/lib/contents.ts
 // Variable: previousProjectQuery
-// Query: *[_type == "project" && _id > $id]|order(_id asc){    ...,    "image": rows[0].images[0]->{  alt,  caption,  "asset": image.asset->{    ...,    metadata { dimensions }  }}  }[0]
+// Query: *[_type == "project" && _id < $id]|order(_id desc){    ...,    "image": rows[0].media[0]{  ...,  "alt": asset->altText,  asset->{    ...,    metadata { dimensions }  }}  }[0]
 export type PreviousProjectQueryResult = {
   _id: string;
   _type: "project";
@@ -698,64 +566,23 @@ export type PreviousProjectQueryResult = {
     _key: string;
   }>;
   rows: Array<{
-    images: Array<
-      {
-        _key: string;
-      } & MediaReference
-    >;
+    images: Array<{
+      asset?: SanityImageAssetReference;
+      media?: unknown;
+      hotspot?: SanityImageHotspot;
+      crop?: SanityImageCrop;
+      _type: "image";
+      _key: string;
+    }>;
     _type: "row";
     _key: string;
   }>;
-  image: {
-    alt: string;
-    caption: Array<{
-      children?: Array<{
-        marks?: Array<string>;
-        text?: string;
-        _type: "span";
-        _key: string;
-      }>;
-      style?: "normal";
-      listItem?: "bullet" | "number";
-      markDefs?: Array<{
-        href?: string;
-        _type: "link";
-        _key: string;
-      }>;
-      level?: number;
-      _type: "block";
-      _key: string;
-    }> | null;
-    asset: {
-      _id: string;
-      _type: "sanity.imageAsset";
-      _createdAt: string;
-      _updatedAt: string;
-      _rev: string;
-      originalFilename?: string;
-      label?: string;
-      title?: string;
-      description?: string;
-      altText?: string;
-      sha1hash: string;
-      extension: string;
-      mimeType: string;
-      size: number;
-      assetId: string;
-      uploadId?: string;
-      path: string;
-      url: string;
-      metadata: {
-        dimensions: SanityImageDimensions | null;
-      } | null;
-      source?: SanityAssetSourceData;
-    } | null;
-  } | null;
+  image: null;
 } | null;
 
 // Source: src/lib/contents.ts
 // Variable: nextProjectQuery
-// Query: *[_type == "project" && _id < $id]|order(_id desc){    ...,    "image": rows[0].images[0]->{  alt,  caption,  "asset": image.asset->{    ...,    metadata { dimensions }  }}  }[0]
+// Query: *[_type == "project" && _id > $id]|order(_id asc){    ...,    "image": rows[0].media[0]{  ...,  "alt": asset->altText,  asset->{    ...,    metadata { dimensions }  }}  }[0]
 export type NextProjectQueryResult = {
   _id: string;
   _type: "project";
@@ -784,59 +611,18 @@ export type NextProjectQueryResult = {
     _key: string;
   }>;
   rows: Array<{
-    images: Array<
-      {
-        _key: string;
-      } & MediaReference
-    >;
+    images: Array<{
+      asset?: SanityImageAssetReference;
+      media?: unknown;
+      hotspot?: SanityImageHotspot;
+      crop?: SanityImageCrop;
+      _type: "image";
+      _key: string;
+    }>;
     _type: "row";
     _key: string;
   }>;
-  image: {
-    alt: string;
-    caption: Array<{
-      children?: Array<{
-        marks?: Array<string>;
-        text?: string;
-        _type: "span";
-        _key: string;
-      }>;
-      style?: "normal";
-      listItem?: "bullet" | "number";
-      markDefs?: Array<{
-        href?: string;
-        _type: "link";
-        _key: string;
-      }>;
-      level?: number;
-      _type: "block";
-      _key: string;
-    }> | null;
-    asset: {
-      _id: string;
-      _type: "sanity.imageAsset";
-      _createdAt: string;
-      _updatedAt: string;
-      _rev: string;
-      originalFilename?: string;
-      label?: string;
-      title?: string;
-      description?: string;
-      altText?: string;
-      sha1hash: string;
-      extension: string;
-      mimeType: string;
-      size: number;
-      assetId: string;
-      uploadId?: string;
-      path: string;
-      url: string;
-      metadata: {
-        dimensions: SanityImageDimensions | null;
-      } | null;
-      source?: SanityAssetSourceData;
-    } | null;
-  } | null;
+  image: null;
 } | null;
 
 // Query TypeMap
@@ -844,11 +630,11 @@ import "@sanity/client";
 declare module "@sanity/client" {
   interface SanityQueries {
     '*[_type == "site-settings"][0]': SiteSettingsQueryResult;
-    '*[_type == "home"]{\n  slides[]->{title,subtitle,slug,"image": rows[0].images[0]->{\n  alt,\n  caption,\n  "asset": image.asset->{\n    ...,\n    metadata { dimensions }\n  }\n}}\n  }[0]': HomeQueryResult;
-    '*[_type == "profile"]{\n    ...,\n    "image": image->{\n  alt,\n  caption,\n  "asset": image.asset->{\n    ...,\n    metadata { dimensions }\n  }\n}\n  }[0]': ProfileQueryResult;
-    '*[_type == "project"]|order(_id desc){\n    ...,\n    "image": rows[0].images[0]->{\n  alt,\n  caption,\n  "asset": image.asset->{\n    ...,\n    metadata { dimensions }\n  }\n}\n  }': ProjectsQueryResult;
-    '*[_type == "project" && slug.current == $slug]{\n    ...,\n    _id,\n    "image": rows[0].images[0]->{\n  alt,\n  caption,\n  "asset": image.asset->{\n    ...,\n    metadata { dimensions }\n  }\n},\n    rows[]{\n      ...,\n      images[]->{\n  alt,\n  caption,\n  "asset": image.asset->{\n    ...,\n    metadata { dimensions }\n  }\n}\n    }\n  }[0]': ProjectQueryResult;
-    '*[_type == "project" && _id > $id]|order(_id asc){\n    ...,\n    "image": rows[0].images[0]->{\n  alt,\n  caption,\n  "asset": image.asset->{\n    ...,\n    metadata { dimensions }\n  }\n}\n  }[0]': PreviousProjectQueryResult;
-    '*[_type == "project" && _id < $id]|order(_id desc){\n    ...,\n    "image": rows[0].images[0]->{\n  alt,\n  caption,\n  "asset": image.asset->{\n    ...,\n    metadata { dimensions }\n  }\n}\n  }[0]': NextProjectQueryResult;
+    '*[_type == "home"]{\n  slides[]->{title,subtitle,slug,"image": rows[0].media[0]{\n  ...,\n  "alt": asset->altText,\n  asset->{\n    ...,\n    metadata { dimensions }\n  }\n}}\n  }[0]': HomeQueryResult;
+    '*[_type == "profile"]{\n    ...,\n    "image": image{\n  ...,\n  "alt": asset->altText,\n  asset->{\n    ...,\n    metadata { dimensions }\n  }\n}\n  }[0]': ProfileQueryResult;
+    '*[_type == "projects"][0]{\n    "items": items[]->{\n      ...,\n      "image": rows[0].media[0]{\n  ...,\n  "alt": asset->altText,\n  asset->{\n    ...,\n    metadata { dimensions }\n  }\n}\n    }\n  }': ProjectsQueryResult;
+    '*[_type == "project" && slug.current == $slug]{\n    ...,\n    _id,\n    "image": rows[0].media[0]{\n  ...,\n  "alt": asset->altText,\n  asset->{\n    ...,\n    metadata { dimensions }\n  }\n},\n    rows[]{\n      ...,\n      media[]{\n  ...,\n  _type == "image" => {\n  ...,\n  "alt": asset->altText,\n  asset->{\n    ...,\n    metadata { dimensions }\n  }\n},\n  _type == "video" => {\n  ...,\n  "alt": asset->altText,\n  "url": asset->url,\n  "mimeType": asset->mimeType,\n  poster{\n    ...,\n    "alt": asset->altText,\n    asset->{\n      ...,\n      metadata { dimensions }\n    }\n  }\n}\n}\n    }\n  }[0]': ProjectQueryResult;
+    '*[_type == "project" && _id < $id]|order(_id desc){\n    ...,\n    "image": rows[0].media[0]{\n  ...,\n  "alt": asset->altText,\n  asset->{\n    ...,\n    metadata { dimensions }\n  }\n}\n  }[0]': PreviousProjectQueryResult;
+    '*[_type == "project" && _id > $id]|order(_id asc){\n    ...,\n    "image": rows[0].media[0]{\n  ...,\n  "alt": asset->altText,\n  asset->{\n    ...,\n    metadata { dimensions }\n  }\n}\n  }[0]': NextProjectQueryResult;
   }
 }

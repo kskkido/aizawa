@@ -1,0 +1,36 @@
+---
+type Props = {
+  video: {
+    url: string;
+    mimeType: string;
+    alt: string;
+    poster?: {
+      asset: {
+        url: string;
+        metadata: { dimensions: { width: number; height: number } };
+      };
+    };
+  };
+  "transition-name"?: string;
+};
+
+const { video, "transition-name": transitionName } = Astro.props;
+const posterUrl = video.poster?.asset?.url;
+const dimensions = video.poster?.asset?.metadata?.dimensions;
+const aspectRatio = dimensions
+  ? `${dimensions.width} / ${dimensions.height}`
+  : undefined;
+---
+
+<video
+  transition:name={transitionName}
+  controls
+  playsinline
+  preload="metadata"
+  poster={posterUrl}
+  aria-label={video.alt}
+  style={aspectRatio ? { aspectRatio } : undefined}
+>
+  <source src={video.url} type={video.mimeType} />
+  <track kind="captions" />
+</video>

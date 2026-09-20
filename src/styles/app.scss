@@ -92,7 +92,8 @@ $popover-open: ":is(:popover-open, .\\:popover-open)";
   }
 
   picture,
-  img {
+  img,
+  video {
     display: block;
     object-fit: contain;
     inline-size: 100%;

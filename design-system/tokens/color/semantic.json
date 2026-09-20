@@ -6,11 +6,14 @@
     "surface": {
       "normal": {
         "value": "{color.base.white}"
+      },
+      "subdued": {
+        "value": "{color.base.gray.500}"
       }
     },
     "border": {
       "normal": {
-        "value": "{color.base.gray.500}"
+        "value": "{color.base.gray.300}"
       }
     },
     "text": {

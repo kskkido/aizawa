@@ -36,7 +36,7 @@
     "react-is": "^19.2.8",
     "sanity": "^6.6.0",
     "sanity-plugin-media": "^6.2.0",
-    "sass": "^1.102.0",
+    "sass": "^1.104.1",
     "styled-components": "^6.4.4",
     "wrangler": "^4.114.0"
   },

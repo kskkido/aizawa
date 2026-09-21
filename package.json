@@ -44,6 +44,6 @@
     "@biomejs/biome": "2.5.13",
     "@portabletext/types": "^4.0.2",
     "@types/bun": "^1.4.1",
-    "style-dictionary": "^5.5.1"
+    "style-dictionary": "^5.5.3"
   }
 }

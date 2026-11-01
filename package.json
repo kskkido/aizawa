@@ -23,6 +23,7 @@
   },
   "dependencies": {
     "@astrojs/cloudflare": "^14.1.4",
+    "@astrojs/sitemap": "^3.7.4",
     "@oddbird/popover-polyfill": "^0.7.2",
     "@sanity/astro": "^3.5.0",
     "@sanity/client": "^7.25.0",

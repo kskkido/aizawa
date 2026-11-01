@@ -1,7 +1,7 @@
 // @ts-check
-
 import sanity from "@sanity/astro";
 import { defineConfig } from "astro/config";
+import sitemap from "@astrojs/sitemap";
 
 // https://astro.build/config
 export default defineConfig({
@@ -10,11 +10,15 @@ export default defineConfig({
     prefetchAll: true,
     defaultStrategy: "viewport",
   },
+  experimental: {
+    clientPrerender: true,
+  },
   integrations: [
     sanity({
       projectId: process.env.SANITY_STUDIO_PROJECT_ID,
       dataset: process.env.SANITY_STUDIO_DATASET,
     }),
+    sitemap(),
   ],
   vite: {
     resolve: {

@@ -26,6 +26,12 @@ pnpm-debug.log*
 # jetbrains setting folder
 .idea/
 
-seeds/
+# cargo
+/target/
 
-design-system/build/
+# turbo
+.turbo/
+
+packages/design-system/build/
+
+tmp/

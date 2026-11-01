@@ -1,5 +1,5 @@
 {
-  "name": "aizawa",
+  "name": "@aizawa/studio",
   "private": true,
   "version": "1.0.0",
   "main": "package.json",

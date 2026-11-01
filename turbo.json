@@ -1,0 +1,36 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "futureFlags": {
+    "experimentalCargoWorkspaces": true
+  },
+  "globalEnv": ["SANITY_STUDIO_PROJECT_ID", "SANITY_STUDIO_DATASET", "SITE"],
+  "globalPassThroughEnv": ["SANITY_API_TOKEN", "SANITY_STUDIO_APP_ID"],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**", "build/**"]
+    },
+    "dev": {
+      "dependsOn": ["^build"],
+      "cache": false,
+      "persistent": true
+    },
+    "check": {},
+    "lint": {},
+    "test": {},
+    "format": {
+      "cache": false
+    },
+    "schema:extract": {
+      "outputs": ["schema.json"]
+    },
+    "typegen": {
+      "dependsOn": ["@aizawa/studio#schema:extract"],
+      "outputs": ["src/sanity.types.ts"]
+    },
+    "deploy": {
+      "dependsOn": ["build"],
+      "cache": false
+    }
+  }
+}

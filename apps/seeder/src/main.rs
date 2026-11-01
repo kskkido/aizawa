@@ -4,9 +4,9 @@ mod seeder;
 mod store;
 mod utils;
 
-use clap::{Parser, Subcommand, ValueEnum};
+use clap::{Parser, Subcommand};
 use std::env;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 #[derive(Parser, Debug)]
 #[command(version)]
@@ -23,46 +23,23 @@ enum Command {
         #[arg(long)]
         all: Option<bool>,
         #[arg(long, value_enum, value_delimiter = ',')]
-        document: Option<Vec<DocumentOption>>,
+        document: Option<Vec<scraper::ScraperDocument>>,
     },
     Seed {
         #[arg(long)]
         all: Option<bool>,
         #[arg(long, value_enum, value_delimiter = ',')]
-        document: Option<Vec<DocumentOption>>,
+        document: Option<Vec<seeder::SeederDocument>>,
         #[arg(long)]
         seed_dir: Option<String>,
     },
-}
-
-#[derive(ValueEnum, Clone, Copy, Debug)]
-enum DocumentOption {
-    Profile,
-    Projects,
-}
-
-impl From<DocumentOption> for scraper::ScraperDocument {
-    fn from(arg: DocumentOption) -> Self {
-        match arg {
-            DocumentOption::Projects => scraper::ScraperDocument::Projects,
-            DocumentOption::Profile => scraper::ScraperDocument::Profile,
-        }
-    }
-}
-
-impl From<DocumentOption> for seeder::SeederDocument {
-    fn from(arg: DocumentOption) -> Self {
-        match arg {
-            DocumentOption::Projects => seeder::SeederDocument::Projects,
-            DocumentOption::Profile => seeder::SeederDocument::Profile,
-        }
-    }
 }
 
 static SITEMAP_URL: &str = "https://deanaizawa.com/sitemap.xml";
 static ALLOWED_LIST: [&str; 1] = ["cdn.myportfolio.com"];
 static SKIP_PATHS: [&str; 3] = ["", "works", "about"];
 static DEFAULT_SEED_DIR: &str = "tmp/seeds";
+static ROOT_DIR: &str = env!("CARGO_MANIFEST_DIR");
 
 fn default_seed_dir() -> Result<String, Box<dyn std::error::Error>> {
     let root_path = utils::get_root_path()?;
@@ -75,6 +52,12 @@ fn default_seed_dir() -> Result<String, Box<dyn std::error::Error>> {
 }
 
 async fn run(args: CliArgs) -> Result<(), Box<dyn std::error::Error>> {
+    let data_dir = Path::new(ROOT_DIR)
+        .join("data")
+        .to_str()
+        .unwrap()
+        .to_string();
+
     match args.command {
         Command::Scrape {
             all,
@@ -84,13 +67,14 @@ async fn run(args: CliArgs) -> Result<(), Box<dyn std::error::Error>> {
             let scope = if all.unwrap_or(false) {
                 scraper::ScraperScope::All
             } else if let Some(documents) = document_list {
-                scraper::ScraperScope::Documents(documents.into_iter().map(Into::into).collect())
+                scraper::ScraperScope::Documents(documents)
             } else {
                 return Err("Either --all or --document must be specified".into());
             };
             scraper::scrape(scraper::Config {
-                scope: scope,
-                output_dir: output.unwrap_or_else(|| default_seed_dir().unwrap()),
+                scope,
+                data_dir,
+                seed_dir: output.unwrap_or_else(|| default_seed_dir().unwrap()),
                 sitemap_url: SITEMAP_URL.to_string(),
                 allowed_list: ALLOWED_LIST.iter().map(|s| s.to_string()).collect(),
                 skip_paths: SKIP_PATHS.iter().map(|s| s.to_string()).collect(),
@@ -105,12 +89,13 @@ async fn run(args: CliArgs) -> Result<(), Box<dyn std::error::Error>> {
             let scope = if all.unwrap_or(false) {
                 seeder::SeederScope::All
             } else if let Some(documents) = document_list {
-                seeder::SeederScope::Documents(documents.into_iter().map(Into::into).collect())
+                seeder::SeederScope::Documents(documents)
             } else {
                 return Err("Either --all or --document must be specified".into());
             };
             seeder::seed(seeder::Config {
                 scope,
+                data_dir,
                 seed_dir: seed_dir.unwrap_or_else(|| default_seed_dir().unwrap()),
                 sanity_project_id: env::var("SANITY_STUDIO_PROJECT_ID")?,
                 sanity_dataset: env::var("SANITY_STUDIO_DATASET")?,

@@ -7,7 +7,7 @@ const {
   markDef: { href },
 } = Astro.props.node;
 
-const isExternal = /^https?:\/\//.test(href);
+const isExternal = /^(https|http)?:\/\//.test(href);
 ---
 
 <a

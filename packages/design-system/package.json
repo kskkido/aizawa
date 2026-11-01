@@ -1,0 +1,11 @@
+{
+  "name": "@aizawa/design-system",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "style-dictionary build -c ./config.json"
+  },
+  "devDependencies": {
+    "style-dictionary": "^5.5.1"
+  }
+}

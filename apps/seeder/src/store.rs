@@ -3,19 +3,28 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use tokio::{fs, io::BufWriter};
 
+static SITE_SETTINGS_PATH: &str = "site-settings.json";
 static PROFILE_DIR: &str = "profile";
 static PROJECTS_DIR: &str = "projects";
 
 #[derive(Debug)]
 pub struct Store {
-    base_dir: PathBuf,
+    data_dir: PathBuf,
+    seed_dir: PathBuf,
 }
 
 pub struct Config {
-    pub base_dir: String,
+    pub data_dir: String,
+    pub seed_dir: String,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
+pub struct SiteSettings {
+    pub title: String,
+    pub description: String,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
 pub struct ProfileMetadata {
     pub name: String,
     pub description: Vec<String>,
@@ -23,20 +32,20 @@ pub struct ProfileMetadata {
     pub socials: SocialsMetadata,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct ImageMetadata {
     pub url: String,
     pub alt: String,
     pub caption: String,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct SocialsMetadata {
     pub youtube: String,
     pub instagram: String,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct ProjectMetadata {
     pub title: String,
     pub subtitle: String,
@@ -46,9 +55,10 @@ pub struct ProjectMetadata {
 
 impl Store {
     pub async fn new(config: Config) -> Result<Self, Box<dyn std::error::Error>> {
-        let base_dir = PathBuf::from(config.base_dir);
-        fs::create_dir_all(&base_dir).await?;
-        Ok(Self { base_dir })
+        let data_dir = PathBuf::from(config.data_dir);
+        let seed_dir = PathBuf::from(config.seed_dir);
+        fs::create_dir_all(&seed_dir).await?;
+        Ok(Self { data_dir, seed_dir })
     }
 
     pub async fn read<T: DeserializeOwned>(
@@ -62,6 +72,10 @@ impl Store {
     pub async fn read_bytes(path: impl AsRef<Path>) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
         let bytes = fs::read(path).await?;
         Ok(bytes)
+    }
+
+    pub async fn read_site_settings(&self) -> Result<SiteSettings, Box<dyn std::error::Error>> {
+        Self::read::<SiteSettings>(self.site_settings_path()).await
     }
 
     pub async fn read_profile_image(
@@ -163,8 +177,12 @@ impl Store {
         Ok(project_slugs)
     }
 
+    pub fn site_settings_path(&self) -> PathBuf {
+        self.data_dir.join(SITE_SETTINGS_PATH)
+    }
+
     pub fn profile_path(&self) -> PathBuf {
-        self.base_dir.join(PROFILE_DIR)
+        self.seed_dir.join(PROFILE_DIR)
     }
 
     pub fn prepend_profile_path(&self, path: impl AsRef<Path>) -> PathBuf {
@@ -172,7 +190,7 @@ impl Store {
     }
 
     pub fn projects_path(&self) -> PathBuf {
-        self.base_dir.join(PROJECTS_DIR)
+        self.seed_dir.join(PROJECTS_DIR)
     }
 
     pub fn prepend_project_path(&self, path: impl AsRef<Path>) -> PathBuf {

@@ -1,7 +1,8 @@
 // @ts-check
+
+import sitemap from "@astrojs/sitemap";
 import sanity from "@sanity/astro";
 import { defineConfig } from "astro/config";
-import sitemap from "@astrojs/sitemap";
 
 // https://astro.build/config
 export default defineConfig({
@@ -24,7 +25,10 @@ export default defineConfig({
     resolve: {
       alias: {
         "@": new URL("./src", import.meta.url).pathname,
-        "@design-system": new URL("./design-system", import.meta.url).pathname,
+        "@design-system": new URL(
+          "../../packages/design-system",
+          import.meta.url,
+        ).pathname,
       },
     },
   },

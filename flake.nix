@@ -8,6 +8,8 @@
       default = pkgs.mkShell {
         buildInputs = with pkgs; [
           bun
+          rustc
+          cargo
         ];
       };
     }) nixpkgs.legacyPackages;

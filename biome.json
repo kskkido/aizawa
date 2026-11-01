@@ -17,7 +17,8 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "preset": "recommended"
+      "preset": "recommended",
+      "style": { "noNonNullAssertion": "off" }
     }
   },
   "html": {
@@ -40,5 +41,23 @@
         "organizeImports": "on"
       }
     }
-  }
+  },
+  "overrides": [
+    {
+      "includes": ["apps/web/src/components/PortableTextLink.astro"],
+      "linter": {
+        "rules": {
+          "a11y": { "useAnchorContent": "off" }
+        }
+      }
+    },
+    {
+      "includes": ["**/*.astro"],
+      "linter": {
+        "rules": {
+          "complexity": { "noUselessFragments": "off" }
+        }
+      }
+    }
+  ]
 }

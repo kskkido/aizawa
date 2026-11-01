@@ -1,0 +1,6 @@
+[workspace]
+members = ["apps/seeder"]
+resolver = "3"
+
+[workspace.metadata]
+name = "aizawa-cargo"

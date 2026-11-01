@@ -1,7 +1,7 @@
 use crate::sanity_client::{self, Mutation, PostImageAssetQuery};
 use crate::store;
+use clap::ValueEnum;
 use futures::stream::{self, StreamExt, TryStreamExt};
-use serde::Serialize;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -11,6 +11,7 @@ const CONCURRENCY: usize = 3;
 #[derive(Debug)]
 pub struct Config {
     pub scope: SeederScope,
+    pub data_dir: String,
     pub seed_dir: String,
     pub sanity_project_id: String,
     pub sanity_dataset: String,
@@ -23,8 +24,9 @@ pub enum SeederScope {
     Documents(Vec<SeederDocument>),
 }
 
-#[derive(Debug)]
+#[derive(ValueEnum, Clone, Copy, Debug)]
 pub enum SeederDocument {
+    SiteSettings,
     Profile,
     Projects,
 }
@@ -99,7 +101,8 @@ fn lines_to_portable_text(lines: Vec<String>) -> Vec<serde_json::Value> {
 impl Seeder {
     async fn new(config: Config) -> Result<Self, Box<dyn std::error::Error>> {
         let store = store::Store::new(store::Config {
-            base_dir: config.seed_dir.clone(),
+            data_dir: config.data_dir,
+            seed_dir: config.seed_dir,
         })
         .await?;
         let sanity = sanity_client::Client::new(sanity_client::Config {
@@ -116,14 +119,19 @@ impl Seeder {
         })
     }
 
-    async fn seed(self: &Self) -> Result<(), Box<dyn std::error::Error>> {
+    async fn seed(&self) -> Result<(), Box<dyn std::error::Error>> {
         match &self.scope {
-            SeederScope::All => self.seed_profile().await?,
+            SeederScope::All => {
+                self.seed_site_settings().await?;
+                self.seed_profile().await?;
+                self.seed_projects().await?;
+            }
             SeederScope::Documents(documents) => {
                 for document in documents.iter() {
                     match document {
                         SeederDocument::Profile => self.seed_profile().await?,
                         SeederDocument::Projects => self.seed_projects().await?,
+                        SeederDocument::SiteSettings => self.seed_site_settings().await?,
                     }
                 }
             }
@@ -131,7 +139,20 @@ impl Seeder {
         Ok(())
     }
 
-    async fn seed_profile(self: &Self) -> Result<(), Box<dyn std::error::Error>> {
+    async fn seed_site_settings(&self) -> Result<(), Box<dyn std::error::Error>> {
+        let site_settings = self.store.read_site_settings().await?;
+        println!("{:?}", site_settings);
+        self.sanity
+            .post_mutate(&[Mutation::CreateOrReplace(serde_json::json!({
+                    "_id": "site-settings",
+                    "_type": "site-settings",
+                    "title": site_settings.title,
+                    "description": site_settings.description
+            }))])
+            .await
+    }
+
+    async fn seed_profile(&self) -> Result<(), Box<dyn std::error::Error>> {
         let profile_metadata = self.store.read_profile_metadata().await?;
         let image_asset = self
             .sanity
@@ -175,15 +196,26 @@ impl Seeder {
             .try_collect::<()>()
             .await?;
         self.sanity
-            .post_mutate(&[Mutation::CreateOrReplace(serde_json::json!({
-                "_id": "projects",
-                "_type": "projects",
-                "items": project_slugs.iter().map(|project_slug| serde_json::json!({
-                  "_type": "reference",
-                  "_ref": project_slug,
-                  "_key": Uuid::now_v7().to_string(),
-                })).collect::<Vec<_>>()
-            }))])
+            .post_mutate(&[
+                Mutation::CreateOrReplace(serde_json::json!({
+                    "_id": "projects",
+                    "_type": "projects",
+                    "items": project_slugs.iter().map(|project_slug| serde_json::json!({
+                      "_type": "reference",
+                      "_ref": project_slug,
+                      "_key": Uuid::now_v7().to_string(),
+                    })).collect::<Vec<_>>()
+                })),
+                Mutation::CreateOrReplace(serde_json::json!({
+                    "_id": "home",
+                    "_type": "home",
+                    "slides": project_slugs.iter().take(5).map(|project_slug| serde_json::json!({
+                      "_type": "reference",
+                      "_ref": project_slug,
+                      "_key": Uuid::now_v7().to_string(),
+                    })).collect::<Vec<_>>()
+                })),
+            ])
             .await?;
         println!("Seeded projects: {:?}", project_slugs);
         Ok(())

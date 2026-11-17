@@ -32,19 +32,19 @@ struct PostMutateBody<'a> {
 }
 
 #[derive(Serialize)]
-pub struct PostImageAssetQuery<'a> {
+pub struct PostAssetQuery<'a> {
     pub filename: Option<&'a str>,
     pub title: Option<&'a str>,
     pub description: Option<&'a str>,
 }
 
 #[derive(Deserialize)]
-pub struct PostImageAssetResponse {
-    pub document: ImageAssetDocument,
+pub struct PostAssetResponse {
+    pub document: AssetDocument,
 }
 
 #[derive(Deserialize)]
-pub struct ImageAssetDocument {
+pub struct AssetDocument {
     pub _id: String,
     pub _type: String,
 }
@@ -96,14 +96,31 @@ impl Client {
 
     pub async fn post_asset_image<'a>(
         &self,
-        query: PostImageAssetQuery<'a>,
+        query: PostAssetQuery<'a>,
         body: Vec<u8>,
-    ) -> Result<PostImageAssetResponse, Box<dyn std::error::Error>> {
+    ) -> Result<PostAssetResponse, Box<dyn std::error::Error>> {
         let request = self
             .post(&format!("assets/images/{}", self.config.dataset))?
             .query(&query)
             .body(body);
-        let response = self.send::<PostImageAssetResponse>(request).await?;
+        let response = self.send::<PostAssetResponse>(request).await?;
+
+        Ok(response)
+    }
+
+    // Sanity stores the Content-Type as the asset's mimeType
+    pub async fn post_asset_file<'a>(
+        &self,
+        query: PostAssetQuery<'a>,
+        content_type: &str,
+        body: Vec<u8>,
+    ) -> Result<PostAssetResponse, Box<dyn std::error::Error>> {
+        let request = self
+            .post(&format!("assets/files/{}", self.config.dataset))?
+            .query(&query)
+            .header(reqwest::header::CONTENT_TYPE, content_type)
+            .body(body);
+        let response = self.send::<PostAssetResponse>(request).await?;
 
         Ok(response)
     }

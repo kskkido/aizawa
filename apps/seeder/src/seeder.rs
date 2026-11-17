@@ -1,7 +1,9 @@
-use crate::sanity_client::{self, Mutation, PostImageAssetQuery};
+use crate::sanity_client::{self, Mutation, PostAssetQuery};
 use crate::store;
 use clap::ValueEnum;
 use futures::stream::{self, StreamExt, TryStreamExt};
+use std::collections::HashMap;
+use std::path::Path;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -98,6 +100,48 @@ fn lines_to_portable_text(lines: Vec<String>) -> Vec<serde_json::Value> {
         .collect()
 }
 
+fn asset_reference(asset_id: &str) -> serde_json::Value {
+    serde_json::json!({
+        "_type": "reference",
+        "_ref": asset_id,
+    })
+}
+
+// an entry of a project row's `media` array
+fn media_item(media: &store::Media, asset_ids: &HashMap<&String, String>) -> serde_json::Value {
+    match media {
+        store::Media::Image { file } => serde_json::json!({
+            "_type": "image",
+            "_key": Uuid::now_v7().to_string(),
+            "asset": asset_reference(&asset_ids[file]),
+        }),
+        store::Media::Video { file, poster } => {
+            let mut video = serde_json::json!({
+                "_type": "video",
+                "_key": Uuid::now_v7().to_string(),
+                "asset": asset_reference(&asset_ids[file]),
+            });
+            if let Some(poster) = poster {
+                video["poster"] = serde_json::json!({
+                    "_type": "image",
+                    "asset": asset_reference(&asset_ids[poster]),
+                });
+            }
+            video
+        }
+    }
+}
+
+fn video_content_type(file_name: &str) -> Result<&'static str, Box<dyn std::error::Error>> {
+    match Path::new(file_name)
+        .extension()
+        .and_then(|ext| ext.to_str())
+    {
+        Some("mp4") => Ok("video/mp4"),
+        _ => Err(format!("unsupported video file {file_name}").into()),
+    }
+}
+
 impl Seeder {
     async fn new(config: Config) -> Result<Self, Box<dyn std::error::Error>> {
         let store = store::Store::new(store::Config {
@@ -157,7 +201,7 @@ impl Seeder {
         let image_asset = self
             .sanity
             .post_asset_image(
-                PostImageAssetQuery {
+                PostAssetQuery {
                     filename: Some(&profile_metadata.image.url),
                     title: Some(&profile_metadata.image.alt),
                     description: Some(&profile_metadata.image.caption),
@@ -223,25 +267,40 @@ impl Seeder {
 
     async fn seed_project(&self, project_slug: &String) -> Result<(), Box<dyn std::error::Error>> {
         let project_metadata = self.store.read_project_metadata(project_slug).await?;
-        let project_image_asset_ids = stream::iter(&project_metadata.images)
-            .map(async |uri| -> Result<String, Box<dyn std::error::Error>> {
-                let file = self.store.read_project_image(project_slug, uri).await?;
-                let response = self
-                    .sanity
-                    .post_asset_image(
-                        PostImageAssetQuery {
-                            filename: Some(&uri),
-                            title: Some(&project_metadata.title),
-                            description: None,
-                        },
-                        file,
-                    )
-                    .await?;
+        // (file name, is video); a video's poster is uploaded as an image
+        let uploads = project_metadata
+            .rows
+            .iter()
+            .flatten()
+            .flat_map(|media| match media {
+                store::Media::Image { file } => vec![(file, false)],
+                store::Media::Video { file, poster } => std::iter::once((file, true))
+                    .chain(poster.iter().map(|poster| (poster, false)))
+                    .collect(),
+            });
+        // uploads finish out of order, so map each file name to its asset id
+        let asset_ids: HashMap<&String, String> = stream::iter(uploads)
+            .map(
+                async |(file_name, is_video)| -> Result<(&String, String), Box<dyn std::error::Error>> {
+                    let body = self.store.read_project_image(project_slug, file_name).await?;
+                    let query = PostAssetQuery {
+                        filename: Some(file_name),
+                        title: Some(&project_metadata.title),
+                        description: None,
+                    };
+                    let response = if is_video {
+                        self.sanity
+                            .post_asset_file(query, video_content_type(file_name)?, body)
+                            .await?
+                    } else {
+                        self.sanity.post_asset_image(query, body).await?
+                    };
 
-                Ok(response.document._id)
-            })
+                    Ok((file_name, response.document._id))
+                },
+            )
             .buffer_unordered(CONCURRENCY)
-            .try_collect::<Vec<String>>()
+            .try_collect()
             .await?;
         self.sanity
             .post_mutate(&[Mutation::CreateOrReplace(serde_json::json!({
@@ -254,19 +313,15 @@ impl Seeder {
                     "current": project_slug,
                 },
                 "content": lines_to_portable_text(project_metadata.description),
-                "rows": project_image_asset_ids
+                "rows": project_metadata.rows
                     .iter()
-                    .map(|asset_id| serde_json::json!({
+                    .map(|row| serde_json::json!({
                         "_type": "row",
                         "_key": Uuid::now_v7().to_string(),
-                        "media": [{
-                            "_type": "image",
-                            "_key": Uuid::now_v7().to_string(),
-                            "asset": {
-                                "_type": "reference",
-                                "_ref": asset_id,
-                            },
-                        }],
+                        "media": row
+                            .iter()
+                            .map(|media| media_item(media, &asset_ids))
+                            .collect::<Vec<_>>(),
                     }))
                     .collect::<Vec<_>>(),
             }))])
@@ -325,4 +380,51 @@ pub async fn seed(config: Config) -> Result<(), Box<dyn std::error::Error>> {
     let output = seeder.seed().await?;
 
     Ok(output)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn video_item_references_video_and_poster_assets() {
+        let (file, poster) = ("a.mp4".to_string(), "a.jpg".to_string());
+        let asset_ids = HashMap::from([
+            (&file, "file-a".to_string()),
+            (&poster, "image-a".to_string()),
+        ]);
+        let media = store::Media::Video {
+            file: file.clone(),
+            poster: Some(poster.clone()),
+        };
+        let mut item = media_item(&media, &asset_ids);
+        item.as_object_mut().unwrap().remove("_key");
+        assert_eq!(
+            item,
+            serde_json::json!({
+                "_type": "video",
+                "asset": { "_type": "reference", "_ref": "file-a" },
+                "poster": {
+                    "_type": "image",
+                    "asset": { "_type": "reference", "_ref": "image-a" },
+                },
+            })
+        );
+    }
+
+    #[test]
+    fn video_item_without_poster_omits_poster() {
+        let file = "a.mp4".to_string();
+        let asset_ids = HashMap::from([(&file, "file-a".to_string())]);
+        let media = store::Media::Video {
+            file: file.clone(),
+            poster: None,
+        };
+        assert!(media_item(&media, &asset_ids).get("poster").is_none());
+    }
+
+    #[test]
+    fn non_mp4_video_is_rejected() {
+        assert!(video_content_type("a.avi").is_err());
+    }
 }

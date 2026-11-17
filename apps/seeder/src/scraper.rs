@@ -48,6 +48,164 @@ struct Scraper {
 }
 
 static PROFILE_PATH: &str = "about";
+const MAX_IMAGES_PER_ROW: usize = 4;
+// Adobe Creative Cloud Video, the player Adobe Portfolio uses for uploaded videos
+static CCV_EMBED_DOMAIN: &str = "www-ccv.adobe.io";
+
+#[derive(Clone, Debug)]
+enum MediaSource {
+    Image(url::Url),
+    Video(url::Url),
+}
+
+fn media_rows(document: &Html, allowed_list: &[String]) -> Vec<Vec<MediaSource>> {
+    let module_selector = Selector::parse("#project-modules > .project-module").unwrap();
+    let image_selector = Selector::parse("img[data-src]").unwrap();
+    let grid_selector = Selector::parse("[data-grid-max-images]").unwrap();
+    let embed_selector = Selector::parse("iframe[src]").unwrap();
+
+    let mut rows = Vec::new();
+    for module in document.select(&module_selector) {
+        if module.value().has_class(
+            "project-module-video",
+            scraper::CaseSensitivity::CaseSensitive,
+        ) {
+            for embed in module.select(&embed_selector) {
+                let source = embed.attr("src").unwrap_or_default();
+                match url::Url::parse(source) {
+                    Ok(embed_url) if embed_url.domain() == Some(CCV_EMBED_DOMAIN) => {
+                        rows.push(vec![MediaSource::Video(embed_url)]);
+                    }
+                    _ => println!("Skipping unsupported video embed {}", source),
+                }
+            }
+            continue;
+        }
+
+        let images: Vec<MediaSource> = module
+            .select(&image_selector)
+            .filter_map(|el| el.attr("data-src"))
+            .filter_map(|source| url::Url::parse(source).ok())
+            .filter(|url| {
+                url.domain()
+                    .is_some_and(|domain| allowed_list.iter().any(|allowed| allowed == domain))
+            })
+            .map(MediaSource::Image)
+            .collect();
+        if images.is_empty() {
+            continue;
+        }
+        let images_per_row = module
+            .select(&grid_selector)
+            .next()
+            .and_then(|grid| grid.attr("data-grid-max-images"))
+            .and_then(|value| value.trim().parse::<usize>().ok())
+            .unwrap_or(MAX_IMAGES_PER_ROW)
+            .clamp(1, MAX_IMAGES_PER_ROW);
+        rows.extend(images.chunks(images_per_row).map(|row| row.to_vec()));
+    }
+    rows
+}
+
+#[derive(Debug)]
+struct CcvEmbed {
+    mp4: url::Url,
+    playlist: Option<url::Url>,
+    poster: Option<url::Url>,
+}
+
+fn parse_ccv_embed(html: &str) -> Result<CcvEmbed, Box<dyn std::error::Error>> {
+    let document = Html::parse_document(html);
+    let attr_url = |selector: &str, attr: &str| {
+        document
+            .select(&Selector::parse(selector).unwrap())
+            .next()
+            .and_then(|el| el.attr(attr))
+            .and_then(|value| url::Url::parse(value).ok())
+    };
+
+    Ok(CcvEmbed {
+        mp4: attr_url(r#"video source[type="video/mp4"]"#, "src")
+            .ok_or("video player has no mp4 source")?,
+        playlist: attr_url(r#"video source[type="application/x-mpegURL"]"#, "src"),
+        poster: attr_url("video[data-poster]", "data-poster"),
+    })
+}
+
+fn max_playlist_height(playlist: &str) -> Option<u32> {
+    playlist
+        .lines()
+        .filter_map(|line| line.split("RESOLUTION=").nth(1))
+        .filter_map(|resolution| {
+            resolution
+                .split(',')
+                .next()?
+                .split('x')
+                .nth(1)?
+                .parse()
+                .ok()
+        })
+        .max()
+}
+
+fn mp4_rendition(mp4: &url::Url, height: u32) -> Option<url::Url> {
+    let file_name = mp4.path_segments()?.next_back()?;
+    let (id, _) = file_name.rsplit_once('_')?;
+    let mut rendition = mp4.clone();
+    rendition
+        .path_segments_mut()
+        .ok()?
+        .pop()
+        .push(&format!("{id}_{height}.mp4"));
+    Some(rendition)
+}
+
+struct CcvVideo {
+    file: url::Url,
+    poster: Option<url::Url>,
+}
+
+async fn resolve_ccv_video(
+    client: &reqwest::Client,
+    embed_url: &url::Url,
+) -> Result<CcvVideo, Box<dyn std::error::Error>> {
+    let html = client
+        .get(embed_url.clone())
+        .send()
+        .await?
+        .error_for_status()?
+        .text()
+        .await?;
+    let embed = parse_ccv_embed(&html).map_err(|e| format!("{embed_url}: {e}"))?;
+    let height = match &embed.playlist {
+        Some(playlist_url) => {
+            let playlist = client
+                .get(playlist_url.clone())
+                .send()
+                .await?
+                .error_for_status()?
+                .text()
+                .await?;
+            max_playlist_height(&playlist)
+        }
+        None => None,
+    };
+    let file = height
+        .and_then(|height| mp4_rendition(&embed.mp4, height))
+        .unwrap_or(embed.mp4);
+    Ok(CcvVideo {
+        file,
+        poster: embed.poster,
+    })
+}
+
+fn file_name(url: &url::Url) -> String {
+    Path::new(url.path())
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap()
+        .to_string()
+}
 
 fn text_lines(element: ElementRef) -> Vec<String> {
     let mut lines = Vec::new();
@@ -118,7 +276,6 @@ impl Scraper {
         let title_selector = Selector::parse("h1.title").unwrap();
         let subtitle_selector = Selector::parse("h1.title + div").unwrap();
         let description_selector = Selector::parse(".js-text-editable").unwrap();
-        let image_selector = Selector::parse("section.page img[data-src]").unwrap();
         let semaphore = Arc::new(sync::Semaphore::new(10));
         let mut download_tasks = task::JoinSet::new();
 
@@ -133,36 +290,31 @@ impl Scraper {
 
             let document = Html::parse_document(&document_text);
 
-            let mut image_urls = Vec::new();
-            for element in document.select(&image_selector) {
-                if let Some(source) = element.attr("data-src") {
-                    let image_url = match url::Url::parse(source) {
-                        Ok(image_url) => image_url,
-                        _ => continue,
-                    };
-                    let mut allowed = false;
-                    for entry in &self.config.allowed_list {
-                        if image_url.domain() == Some(entry) {
-                            allowed = true;
+            let mut rows = Vec::new();
+            let mut download_urls = Vec::new();
+            for source_row in media_rows(&document, &self.config.allowed_list) {
+                let mut row = Vec::new();
+                for source in source_row {
+                    match source {
+                        MediaSource::Image(image_url) => {
+                            row.push(store::Media::Image {
+                                file: file_name(&image_url),
+                            });
+                            download_urls.push(image_url);
+                        }
+                        MediaSource::Video(embed_url) => {
+                            let video = resolve_ccv_video(&client, &embed_url).await?;
+                            row.push(store::Media::Video {
+                                file: file_name(&video.file),
+                                poster: video.poster.as_ref().map(file_name),
+                            });
+                            download_urls.push(video.file);
+                            download_urls.extend(video.poster);
                         }
                     }
-                    if !allowed {
-                        continue;
-                    }
-                    image_urls.push(image_url);
                 }
+                rows.push(row);
             }
-
-            let images: Vec<String> = image_urls
-                .iter()
-                .map(|url| {
-                    Path::new(url.path())
-                        .file_name()
-                        .and_then(|name| name.to_str())
-                        .unwrap()
-                        .to_string()
-                })
-                .collect();
 
             let title = document
                 .select(&title_selector)
@@ -183,14 +335,14 @@ impl Scraper {
                 title,
                 subtitle,
                 description,
-                images,
+                rows,
             };
             self.store
                 .write_project_metadata(&project_slug, &metadata)
                 .await?;
 
             let client = reqwest::Client::new();
-            for image_url in image_urls.into_iter() {
+            for media_url in download_urls {
                 download_tasks.spawn({
                     let semaphore = semaphore.clone();
                     let project_slug = project_slug.to_string();
@@ -199,16 +351,16 @@ impl Scraper {
 
                     async move {
                         let _permit = semaphore.acquire().await?;
-                        println!("Downloading {}", image_url);
+                        println!("Downloading {}", media_url);
                         let mut response = client
-                            .get(image_url.clone())
+                            .get(media_url.clone())
                             .send()
                             .await?
                             .error_for_status()?;
                         let mut file_writer = store
                             .open_project_file_writer(
                                 &project_slug,
-                                &Path::new(image_url.path()).file_name().unwrap(),
+                                &Path::new(media_url.path()).file_name().unwrap(),
                             )
                             .await
                             .map_err(|e| format!("failed to create bufwriter: {:?}", e))?;
@@ -327,4 +479,157 @@ pub async fn scrape(config: Config) -> Result<(), Box<dyn std::error::Error>> {
     let scraper = Scraper::new(config).await?;
     let _ = scraper.scrape().await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn rows_of(modules: &str) -> Vec<Vec<String>> {
+        let html =
+            format!(r#"<section class="page"><div id="project-modules">{modules}</div></section>"#);
+        let document = Html::parse_document(&html);
+        media_rows(&document, &["cdn.example.com".to_string()])
+            .iter()
+            .map(|row| {
+                row.iter()
+                    .map(|source| match source {
+                        MediaSource::Image(url) => file_name(url),
+                        MediaSource::Video(url) => format!("video {url}"),
+                    })
+                    .collect()
+            })
+            .collect()
+    }
+
+    fn video_module(embed_url: &str) -> String {
+        format!(
+            r#"<div class="project-module module video project-module-video"><div class="embed-aspect-ratio"><iframe class="embed-content" src="{embed_url}"></iframe></div></div>"#
+        )
+    }
+
+    fn image_module(name: &str) -> String {
+        format!(
+            r#"<div class="project-module module image"><img data-src="https://cdn.example.com/{name}"></div>"#
+        )
+    }
+
+    fn grid_module(max_images: &str, names: &[&str]) -> String {
+        let items: String = names
+            .iter()
+            .map(|name| {
+                format!(
+                    r#"<div class="grid__item-container"><img data-src="https://cdn.example.com/{name}"></div>"#
+                )
+            })
+            .collect();
+        format!(
+            r#"<div class="project-module module media_collection"><div class="grid--main" data-grid-max-images="{max_images}">{items}</div></div>"#
+        )
+    }
+
+    #[test]
+    fn standalone_images_are_separate_rows() {
+        let rows = rows_of(&(image_module("a.jpg") + &image_module("b.jpg")));
+        assert_eq!(rows, vec![vec!["a.jpg"], vec!["b.jpg"]]);
+    }
+
+    #[test]
+    fn tree_children_share_one_row() {
+        let tree = format!(
+            r#"<div class="project-module module tree"><div class="tree-child-wrapper">{}</div><div class="tree-child-wrapper">{}</div></div>"#,
+            image_module("a.jpg"),
+            image_module("b.jpg"),
+        );
+        assert_eq!(rows_of(&tree), vec![vec!["a.jpg", "b.jpg"]]);
+    }
+
+    #[test]
+    fn grid_wraps_at_max_images() {
+        let grid = grid_module("\n  2\n", &["a.jpg", "b.jpg", "c.jpg"]);
+        assert_eq!(rows_of(&grid), vec![vec!["a.jpg", "b.jpg"], vec!["c.jpg"]]);
+    }
+
+    #[test]
+    fn grid_rows_are_capped_at_schema_max() {
+        let grid = grid_module("5", &["a.jpg", "b.jpg", "c.jpg", "d.jpg", "e.jpg"]);
+        assert_eq!(
+            rows_of(&grid),
+            vec![vec!["a.jpg", "b.jpg", "c.jpg", "d.jpg"], vec!["e.jpg"]]
+        );
+    }
+
+    #[test]
+    fn images_from_other_domains_are_skipped() {
+        let module = r#"<div class="project-module module image"><img data-src="https://other.example.com/a.jpg"></div>"#;
+        assert!(rows_of(module).is_empty());
+    }
+
+    #[test]
+    fn video_is_its_own_row_between_images() {
+        let modules = image_module("a.jpg")
+            + &video_module("https://www-ccv.adobe.io/v1/player/ccv/abc/embed")
+            + &image_module("b.jpg");
+        assert_eq!(
+            rows_of(&modules),
+            vec![
+                vec!["a.jpg".to_string()],
+                vec!["video https://www-ccv.adobe.io/v1/player/ccv/abc/embed".to_string()],
+                vec!["b.jpg".to_string()],
+            ]
+        );
+    }
+
+    #[test]
+    fn videos_from_other_players_are_skipped() {
+        let module = video_module("https://www.youtube.com/embed/abc");
+        assert!(rows_of(&module).is_empty());
+    }
+
+    #[test]
+    fn ccv_embed_provides_mp4_playlist_and_poster() {
+        let html = r#"<video id="video-js" data-poster="https://cdn.example.com/abc/image/abc_poster.jpg?t=1">
+            <source src="https://cdn.example.com/abc/rend/master.m3u8?t=1" type="application/x-mpegURL">
+            <source src="https://cdn.example.com/abc/rend/abc_576.mp4?t=1" type="video/mp4">
+        </video>"#;
+        let embed = parse_ccv_embed(html).unwrap();
+        assert_eq!(
+            (
+                embed.mp4.as_str(),
+                embed.playlist.as_ref().map(url::Url::as_str),
+                embed.poster.as_ref().map(url::Url::as_str),
+            ),
+            (
+                "https://cdn.example.com/abc/rend/abc_576.mp4?t=1",
+                Some("https://cdn.example.com/abc/rend/master.m3u8?t=1"),
+                Some("https://cdn.example.com/abc/image/abc_poster.jpg?t=1"),
+            )
+        );
+    }
+
+    #[test]
+    fn ccv_embed_without_mp4_is_an_error() {
+        assert!(parse_ccv_embed(r#"<video id="video-js"></video>"#).is_err());
+    }
+
+    #[test]
+    fn playlist_max_height_is_the_largest_resolution() {
+        let playlist = "#EXTM3U\n\
+            #EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=1664000,RESOLUTION=1024x576\n\
+            hls_576/index.m3u8\n\
+            #EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=4424000,RESOLUTION=1920x1080\n\
+            hls_1080/index.m3u8\n\
+            #EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=2261000,RESOLUTION=1280x720\n\
+            hls_720/index.m3u8\n";
+        assert_eq!(max_playlist_height(playlist), Some(1080));
+    }
+
+    #[test]
+    fn mp4_rendition_swaps_height_and_keeps_token() {
+        let mp4 = url::Url::parse("https://cdn.example.com/abc/rend/abc_576.mp4?t=1").unwrap();
+        assert_eq!(
+            mp4_rendition(&mp4, 1080).unwrap().as_str(),
+            "https://cdn.example.com/abc/rend/abc_1080.mp4?t=1"
+        );
+    }
 }

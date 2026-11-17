@@ -50,7 +50,21 @@ pub struct ProjectMetadata {
     pub title: String,
     pub subtitle: String,
     pub description: Vec<String>,
-    pub images: Vec<String>,
+    // media grouped by the row they appear in on the page
+    pub rows: Vec<Vec<Media>>,
+}
+
+// file names are relative to the project's seed directory
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(tag = "type", rename_all = "lowercase")]
+pub enum Media {
+    Image {
+        file: String,
+    },
+    Video {
+        file: String,
+        poster: Option<String>,
+    },
 }
 
 impl Store {

@@ -15,6 +15,8 @@ const singletonTypes = new Set([
   "profile",
   "projects",
 ]);
+// sanity-plugin-media stores its tags and folders as documents; manage them in the Media tool
+const mediaPluginTypes = new Set(["media.tag", "media.folder"]);
 
 export default defineConfig({
   name: "default",
@@ -51,7 +53,7 @@ export default defineConfig({
               ),
             ...S.documentTypeListItems().filter((listItem) => {
               const id = listItem.getId();
-              return id && !singletonTypes.has(id);
+              return id && !singletonTypes.has(id) && !mediaPluginTypes.has(id);
             }),
           ]),
     }),
@@ -277,6 +279,24 @@ export default defineConfig({
                     },
                   ],
                 },
+                of: [
+                  defineArrayMember({
+                    name: "break",
+                    title: "Line Break",
+                    type: "object",
+                    fields: [
+                      defineField({
+                        name: "style",
+                        type: "string",
+                        initialValue: "lineBreak",
+                        hidden: true,
+                      }),
+                    ],
+                    preview: {
+                      prepare: () => ({ title: "↵" }),
+                    },
+                  }),
+                ],
               }),
             ],
           }),
@@ -345,7 +365,10 @@ export default defineConfig({
       }),
     ],
     templates: (templates) =>
-      templates.filter(({ schemaType }) => !singletonTypes.has(schemaType)),
+      templates.filter(
+        ({ schemaType }) =>
+          !singletonTypes.has(schemaType) && !mediaPluginTypes.has(schemaType),
+      ),
   },
   document: {
     actions: (input, context) =>
